@@ -19,9 +19,12 @@ function *errHandler(next) {
 
     this.body = {
       error: "500 - Internal Server Error",
-      message: ex.message,
-      stack: ex.stack.split("\n").slice(1) /// .forEach((line) => line.trim), /////// TODO: map to trim
-    };
+    }
+
+    if (process.env.DEBUG) {
+      this.body.message = ex.message;
+      this.body.stack = ex.stack.split("\n").slice(1);
+    }
   }
 }
 
@@ -132,14 +135,12 @@ AsyncWebApi.prototype.withAppsCallback = function (appsCallback) {
 };
 
 AsyncWebApi.prototype._executeAppsCallbacks = function () {
-  let apps = {
-    root: this._rootApp,
-    commands: this._commandsApp,
-    events: this._eventsApp
-  };
-
   for (let i = 0; i < this._appsCallbacks.length; i++) {
-    this._appsCallbacks[i](apps);
+    this._appsCallbacks[i](Object.freeze({
+      root: this._rootApp,
+      commands: this._commandsApp,
+      events: this._eventsApp,
+    }));
   }
 };
 
@@ -162,13 +163,13 @@ AsyncWebApi.prototype._configureRootIndex = function () {
 AsyncWebApi.prototype._configureCommandsForDomain = function () {
   let self = this;
 
-  function commandPassthrough(command) {
+  function commandPassthrough(commandName) {
     let cmd = koa();
-    self._commandsApp.use(mount('/' + command, cmd));
+    self._commandsApp.use(mount('/' + commandName, cmd));
     cmd.use(body());
     cmd.use(requireJsonPost);
     cmd.use(function *() {
-      self._appFacade.executeCommand(this, command, this.request.body);
+      self._appFacade.executeCommand(this, commandName, this.request.body);
     });
   }
 
@@ -179,6 +180,11 @@ AsyncWebApi.prototype._configureCommandsForDomain = function () {
   }
 
   this._commandsApp.use(function *() {
+    if (this.path !== "/") {
+      do404(this);
+      return;
+    }
+
     this.body = commands.map(function (command) { return '/commands/' + command; });
   });
 };
@@ -192,9 +198,9 @@ AsyncWebApi.prototype._configureEvents = function () {
     if (this.path === "/") {
       let first = self._appFacade.getFirstEventId(this);
       if (first === undefined) {
-        this.status = 404; // TODO: should this be a 400?
+        this.status = 400;
         this.body = {
-          error: "404 - Not Found",
+          error: "400 - Bad Request",
           detail: "No events exist",
         };
       } else {
@@ -228,7 +234,9 @@ AsyncWebApi.prototype._configureEvents = function () {
 };
 
 AsyncWebApi.prototype.build = function factory() {
-  this._rootApp.use(logger()); // TODO: this is a debug option
+  if (process.env.DEBUG) {
+    this._rootApp.use(logger());
+  }
   this._rootApp.use(notCached);
   this._rootApp.use(errHandler);
   this._rootApp.use(onlyOutputJson);
@@ -242,5 +250,7 @@ AsyncWebApi.prototype.build = function factory() {
 
   return this._rootApp;
 };
+
+AsyncWebApi.do404 = do404;
 
 module.exports = AsyncWebApi;

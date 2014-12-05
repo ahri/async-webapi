@@ -157,9 +157,9 @@ describe("For an app", function () {
       ));
     });
 
-    it('should 404 when there are no events but /events is queried', function (done) {
+    it('should 400 when there are no events but /events is queried', function (done) {
       app
-        .expectStatus(404)
+        .expectStatus(400)
         .get('/events')
         .end(done);
     });
@@ -314,6 +314,15 @@ describe("For an app", function () {
           .noContent()
           .post('/commands/foo')
           .send({id: 'blah', name: 'foo'})
+          .set('Content-Type', 'application/json')
+          .end(done);
+      });
+
+      it('should 404 for unknown commands', function (done) {
+        app
+          .expectStatus(404)
+          .post('/commands/nonExistentCommand')
+          .send({foo: 'bar'})
           .set('Content-Type', 'application/json')
           .end(done);
       });
