@@ -152,7 +152,9 @@ AsyncWebApi.prototype._mountAppsAtRoot = function () {
 
 AsyncWebApi.prototype._configureRootIndex = function () {
   this._rootApp.use(function *(next) {
-    if (this.path === '/err') throw new Error("test");
+    if (this.path === '/err') {
+      throw new Error("test");
+    }
 
     this.body = ['/commands', '/events'];
 
