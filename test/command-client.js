@@ -3,29 +3,50 @@
 let expect = require('chai').expect,
     CommandClient = require('../command-client');
 
-// TODO: create builder that sorts out default read/write/backoff
-
 describe('The CommandClient class', function () {
   var commandClient, localApp, storage, readModel, writeModel, http, backoff;
 
   beforeEach(function () {
+    let cmds = {};
+
     localApp = {
       foo: function () {},
+      xyz: function () {},
     };
     readModel = {
-      getFirstCommandId: function () {},
-      getCommandFor: function () {},
-      getDataFor: function () {},
+      getFirst: function () {
+        return cmds.first;
+      }
     },
     writeModel = {
-      save: function () {},
-      removeId: function () {},
+      add: function (cmd, data) {
+        if (cmds.last === undefined) {
+          cmds.first = {
+            cmd: cmd,
+            data: data,
+          };
+          cmds.last = cmds.first;
+        } else {
+          cmds.last.next = {
+            cmd: cmd,
+            data: data,
+          };
+        }
+      },
+      removeFirst: function () {
+        cmds.first = cmds.first.next;
+        if (cmds.first === undefined) {
+          cmds.last = undefined;
+        }
+      },
     };
     http = {
-      post: function () {},
+      post: function (uri, data, callback) {
+        callback(null, uri, 200, {}, {});
+      }
     };
     backoff = {
-      initialTimeMs: 1,
+      timeMs: 0,
       serverErrorIncrease: function (time) { return time * 2; },
       clientErrorIncrease: function (time) { return time * 2; },
       serverErrorCallback: function () {},
@@ -34,7 +55,20 @@ describe('The CommandClient class', function () {
     commandClient = new CommandClient(localApp, readModel, writeModel, http, backoff);
   });
 
-  it('should pass commands to the local app', function (done) {
+  it('should store the command', function (done) {
+    let writeModelAdd = writeModel.add;
+
+    writeModel.add = function (cmd, data) {
+      writeModelAdd.call(writeModel, cmd, data);
+      if (cmd === "foo" && data === "bar") {
+        done();
+      }
+    };
+
+    commandClient.exec("foo", "bar");
+  });
+
+  it('should pass command to the local app', function (done) {
     localApp.foo = function (data) {
       if (data === "bar") {
         done();
@@ -44,9 +78,9 @@ describe('The CommandClient class', function () {
     commandClient.exec("foo", "bar");
   });
 
-  it('should store the command', function (done) {
-    writeModel.save = function (id, cmd, data) {
-      if (cmd === "foo" && data === "bar") {
+  it('should post a command', function (done) {
+    http.post = function (uri, data) {
+      if (uri === '/foo' && data === "bar") {
         done();
       }
     };
@@ -54,14 +88,31 @@ describe('The CommandClient class', function () {
     commandClient.exec("foo", "bar");
   });
 
-  it('should post the command', function (done) {
-    readModel.getCommandFor = function () { return "foo"; };
-    readModel.getDataFor = function () { return "bar"; };
+  it('should post two commands in order', function (done) {
+    writeModel.add('foo', 'bar');
 
-    http.post = function (uri, data) {
+    let httpPost = http.post,
+        calledFirst = false;
+
+    http.post = function (uri, data, callback) {
       if (uri === '/foo' && data === "bar") {
+        calledFirst = true;
+      }
+      if (calledFirst && uri === '/xyz' && data === "123") {
         done();
       }
+
+      httpPost.call(http, uri, data, callback);
+    };
+
+    commandClient.exec("xyz", "123");
+  });
+
+  it('should remove the command', function (done) {
+    let writeModelRemoveFirst = writeModel.removeFirst;
+    writeModel.removeFirst = function () {
+      writeModelRemoveFirst.call(writeModel);
+      done();
     };
 
     commandClient.exec("foo", "bar");
