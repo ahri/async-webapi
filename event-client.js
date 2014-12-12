@@ -58,6 +58,7 @@ Strategy.prototype.add = function (strategy) {
   this._strategies.push(strategy);
 };
 
+// TODO: consider moving to backoff object like command client???
 function EventClient(initialuri, transitionCall, http, shortPoll, longPoll, longerPoll) {
   var strategy = new Strategy(function argsToObj(args) {
         return "{err: " + args[0] +
@@ -92,9 +93,9 @@ function EventClient(initialuri, transitionCall, http, shortPoll, longPoll, long
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return status === 404;
+      return status === 400;
     },
-    exec: function strat404(err, uri, status, headers, body) {
+    exec: function strat400NoEventsYet(err, uri, status, headers, body) {
       asyncPoller.poll(uri, longPoll);
     }
   });
@@ -103,7 +104,7 @@ function EventClient(initialuri, transitionCall, http, shortPoll, longPoll, long
     canHandle: function (err, uri, status, headers, body) {
       return status === 302;
     },
-    exec: function strat302(err, uri, status, headers, body) {
+    exec: function strat302FirstEvent(err, uri, status, headers, body) {
       asyncPoller.poll(headers['location'], shortPoll, transitionCall);
     }
   });

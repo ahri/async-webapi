@@ -1,8 +1,7 @@
 'use strict';
 
 var expect = require('chai').expect,
-    EventClient = require('../event-client'),
-    request = require('supertest');
+    EventClient = require('../event-client');
 
 function DummyServer(responses)
 {
@@ -58,6 +57,20 @@ describe('The Event Client', function () {
           done();
         }
       }
+    };
+
+    client = new EventClient('/events', transition, dummyServer.http(), 0, 0, 0);
+  });
+
+  it('should poll normally if it receives a 400 - there are no events', function (done) {
+    var dummyServer = new DummyServer([
+      [null, '/events', 400, {}, {}],
+      [null, '/events', 302, {location: '/events/1'}, {}],
+      [null, '/events/1', 200, {}, {}], // NB. transition call happens when we move to here
+    ]);
+
+    var transition = function (uri, status, headers, body) {
+      done();
     };
 
     client = new EventClient('/events', transition, dummyServer.http(), 0, 0, 0);
