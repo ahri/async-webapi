@@ -24,7 +24,25 @@ DummyServer.prototype.http = function () {
 };
 
 describe('The Event Client', function () {
-  var client;
+  var client, backoff, platform;
+
+  beforeEach(function () {
+    backoff = {
+      timeMs: 1,
+      serverErrorIncrease: function (time) { return time * 2; },
+      clientErrorIncrease: function (time) { return time * 2; },
+      waitingIncrease: function (time) { return 1; },
+      serverErrorCallback: function () {},
+      clientErrorCallback: function () {},
+      waitingCallback: function () {},
+    };
+
+    platform = {
+      setTimeout: function (f, t) {
+        return setTimeout(f, 0);
+      },
+    };
+  });
 
   afterEach(function () {
     client.disable();
@@ -40,7 +58,7 @@ describe('The Event Client', function () {
       done();
     };
 
-    client = new EventClient('/events', transition, dummyServer.http(), 0, 0, 0);
+    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   it('should traverse all events up to the head', function (done) {
@@ -59,7 +77,7 @@ describe('The Event Client', function () {
       }
     };
 
-    client = new EventClient('/events', transition, dummyServer.http(), 0, 0, 0);
+    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   it('should poll normally if it receives a 400 - there are no events', function (done) {
@@ -69,11 +87,9 @@ describe('The Event Client', function () {
       [null, '/events/1', 200, {}, {}], // NB. transition call happens when we move to here
     ]);
 
-    var transition = function (uri, status, headers, body) {
-      done();
-    };
+    var transition = function () { done(); };
 
-    client = new EventClient('/events', transition, dummyServer.http(), 0, 0, 0);
+    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   describe('under server error conditions', function () {
@@ -81,17 +97,18 @@ describe('The Event Client', function () {
       var calls = 0;
       var http = {
         get: function (uri, callback) {
-          callback(null, uri, 501, {}, {});
-          calls++;
-
-          if (calls === 1) {
-            done();
+          if (calls === 0) {
+            calls++;
+            callback(null, uri, 501, {}, {});
           }
         }
       };
 
-      // NB. the short and long poll times will fail the 2s duration test. Bit flakey...
-      client = new EventClient('/events', function () {}, http, 5000, 5000, 0);
+      backoff.serverErrorCallback = function () {
+        done();
+      };
+
+      client = new EventClient('/events', function () {}, http, backoff, platform);
     });
   });
 
@@ -100,17 +117,18 @@ describe('The Event Client', function () {
       var calls = 0;
       var http = {
         get: function (uri, callback) {
-          callback(new Error("the world is burning"), null, null, null, null);
-          calls++;
-
-          if (calls === 1) {
-            done();
+          if (calls === 0) {
+            calls++;
+            callback(new Error("the world is burning"), null, null, null, null);
           }
         }
       };
 
-      // NB. the short and long poll times will fail the 2s duration test. Bit flakey...
-      client = new EventClient('/events', function () {}, http, 5000, 5000, 0);
+      backoff.clientErrorCallback = function () {
+        done();
+      };
+
+      client = new EventClient('/events', function () {}, http, backoff, platform);
     });
   });
 });

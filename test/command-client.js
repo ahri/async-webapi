@@ -4,7 +4,7 @@ let expect = require('chai').expect,
     CommandClient = require('../command-client');
 
 describe('The CommandClient class', function () {
-  var commandClient, localApp, storage, readModel, writeModel, http, backoff;
+  var commandClient, localApp, storage, readModel, writeModel, http, backoff, platform;
 
   beforeEach(function () {
     let cmds = {};
@@ -46,13 +46,18 @@ describe('The CommandClient class', function () {
       }
     };
     backoff = {
-      timeMs: 0,
+      timeMs: 1,
       serverErrorIncrease: function (time) { return time * 2; },
       clientErrorIncrease: function (time) { return time * 2; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
     };
-    commandClient = new CommandClient(localApp, readModel, writeModel, http, backoff);
+    platform = {
+      setTimeout: function (f, t) {
+        return setTimeout(f, 0);
+      },
+    };
+    commandClient = new CommandClient(localApp, readModel, writeModel, http, backoff, platform);
   });
 
   it('should store the command', function (done) {

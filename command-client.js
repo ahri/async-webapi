@@ -1,11 +1,46 @@
 'use strict';
 
-function CommandClient(localApp, readModel, writeModel, http, backoff) {
+function CommandClient(localApp, readModel, writeModel, http, backoff, platform) {
+  if (localApp === undefined) {
+    throw new Error("Provide an app");
+  }
+
+  if (readModel === undefined) {
+    // TODO: consider defaulting to browser impl
+    throw new Error("Provide a read model");
+  }
+
+  if (writeModel === undefined) {
+    // TODO: consider defaulting to browser impl
+    throw new Error("Provide a write model");
+  }
+
+  if (http === undefined) {
+    throw new Error("Provide an http client implementation");
+  }
+
+  if (backoff === undefined) {
+    backoff = {
+      timeMs: 1,
+      serverErrorIncrease: function (time) { return time * 2; },
+      clientErrorIncrease: function (time) { return time * 2; },
+      serverErrorCallback: function () {},
+      clientErrorCallback: function () {},
+    };
+  }
+
+  if (platform === undefined) {
+    platform = {
+      setTimeout: setTimeout,
+    };
+  }
+
   this._localApp = localApp;
   this._readModel = readModel;
   this._writeModel = writeModel;
   this._http = http;
   this._backoff = backoff;
+  this._platform = platform;
 
   this._lockedWaitingForErrorStateResolution = false;
 
@@ -24,12 +59,12 @@ function CommandClient(localApp, readModel, writeModel, http, backoff) {
     }
 
     function errorState(increaseFunc, callback) {
-      setTimeout(function () {
+      platform.setTimeout(function () {
         self._lockedWaitingForErrorStateResolution = false;
         self._sync(self._readModel.getFirst(), increaseFunc(backoffTimeMs));
       }, backoffTimeMs);
 
-      setTimeout((function () {
+      platform.setTimeout((function () {
         callback(backoffTimeMs);
       })(), 0);
     }
@@ -55,7 +90,7 @@ CommandClient.prototype.exec = function (cmd, data) {
   this._writeModel.add(cmd, data);
 
   var self = this;
-  setTimeout(function () {
+  this._platform.setTimeout(function () {
     while (true) {
       var firstCommand = self._readModel.getFirst();
       if (!firstCommand || self._lockedWaitingForErrorStateResolution) {
