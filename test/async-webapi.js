@@ -136,12 +136,18 @@ describe("For an app", function () {
         .expectStatus(500)
         .get('/err')
         .expect(function (res) {
-          if (res.body.message !== 'test') {
-            return "Test exception appears to be a genuine exception! Got: " + res.body.message;
-          }
+          if (!process.env.DEBUG) {
+            expect(res.body).to.deep.equal({
+              error: "500 - Internal Server Error",
+            });
+          } else {
+            if (res.body.message !== 'test') {
+              return "Test exception appears to be a genuine exception! Got: " + res.body.message;
+            }
 
-          if (res.body.stack.length < 1) {
-            return "Expected a stack trace of length 1 or more.";
+            if (res.body.stack.length < 1) {
+              return "Expected a stack trace of length 1 or more.";
+            }
           }
         })
         .end(done);
