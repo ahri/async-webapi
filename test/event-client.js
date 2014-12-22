@@ -69,8 +69,8 @@ describe('The Event Client', function () {
     ]);
 
     var calls = 0;
-    var transition = function (type, message) {
-      if (message === "at head") {
+    var transition = function (uri, status, headers, body) {
+      if (body.message === "at head") {
         if (calls++ === 0) {
           done();
         }

@@ -14,7 +14,7 @@ AsyncPoller.prototype.poll = function (uri, delay, callback) {
     self._platform.setTimeout(function () {
       self._http.get(uri, function (err, uri, status, headers, body) {
         if (callback) {
-          self._platform.setTimeout(function () { callback(body.type, body.message); }, 0);
+          self._platform.setTimeout(function () { callback(uri, status, headers, body); }, 0);
         }
         self._strategy.exec(err, delay, uri, status, headers, body);
       });
