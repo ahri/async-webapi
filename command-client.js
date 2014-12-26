@@ -81,12 +81,16 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
       }
     };
 
-    this._http.post('/' + cmd.cmd, cmd.data, callback);
+    this._http.post(cmd.cmd, cmd.data, callback);
   };
 }
 
 CommandClient.prototype.exec = function (cmd, data) {
-  this._localApp[cmd].call(this._localApp, data);
+  var cmdFunc = this._localApp[cmd];
+  if (cmdFunc === undefined) {
+    throw new Error("Command " + cmd + " does not exist");
+  }
+  cmdFunc.call(this._localApp, data);
   this._writeModel.add(cmd, data);
 
   var self = this;

@@ -54,7 +54,7 @@ describe('The Event Client', function () {
       [null, '/events/1', 200, {}, {}],
     ]);
 
-    var transition = function () {
+    var transition = function (err, type, message) {
       done();
     };
 
@@ -69,8 +69,8 @@ describe('The Event Client', function () {
     ]);
 
     var calls = 0;
-    var transition = function (uri, status, headers, body) {
-      if (body.message === "at head") {
+    var transition = function (err, type, message) {
+      if (message === "at head") {
         if (calls++ === 0) {
           done();
         }
@@ -87,7 +87,7 @@ describe('The Event Client', function () {
       [null, '/events/1', 200, {}, {}], // NB. transition call happens when we move to here
     ]);
 
-    var transition = function () { done(); };
+    var transition = function (err, type, message) { done(); };
 
     client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
@@ -108,7 +108,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function () {}, http, backoff, platform);
+      client = new EventClient('/events', function (err, type, message) {}, http, backoff, platform);
     });
   });
 
@@ -128,7 +128,37 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function () {}, http, backoff, platform);
+      client = new EventClient('/events', function (err, type, message) {}, http, backoff, platform);
+    });
+  });
+
+  describe('edge cases', function () {
+    it('https required should kill off the client', function () {
+      var dummyServer = new DummyServer([
+        [null, '/events', 403, {}, {}],
+      ]);
+
+      backoff.clientErrorCallback = function () {
+        done();
+      };
+
+      expect(function () {
+        new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      }).to.throw;
+    });
+
+    it('authentication required should kill off the client', function () {
+      var dummyServer = new DummyServer([
+        [null, '/events', 401, {}, {}],
+      ]);
+
+      backoff.clientErrorCallback = function () {
+        done();
+      };
+
+      expect(function () {
+        new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      }).to.throw;
     });
   });
 });

@@ -6,15 +6,15 @@ function AsyncPoller(platform, strategy, http) {
 }
 
 AsyncPoller.prototype.poll = function (uri, delay, callback) {
-  if (!this._enabled) {
-    return;
-  }
-
   (function close(self) {
     self._platform.setTimeout(function () {
+      if (!self._enabled) {
+        return;
+      }
+
       self._http.get(uri, function (err, uri, status, headers, body) {
         if (callback) {
-          self._platform.setTimeout(function () { callback(uri, status, headers, body); }, 0);
+          self._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
         }
         self._strategy.exec(err, delay, uri, status, headers, body);
       });
@@ -59,14 +59,24 @@ Strategy.prototype.add = function (strategy) {
   this._strategies.push(strategy);
 };
 
-function EventClient(initialUri, transitionCall, http, backoff, platform) {
+function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (initialUri === undefined) {
     throw new Error("Provide an initial uri");
   }
 
-  if (transitionCall === undefined) {
-    throw new Error("Provide a transition callback");
+  if (eventCallback === undefined || eventCallback.call === undefined || eventCallback.length !== 3) {
+    throw new Error("Provide an event callback with 3 params: err, eventType, eventMessage");
   }
+
+  var transitionCall = function (err, uri, status, headers, body) {
+    // Assumption: we don't get called in case of error
+
+    if (body.type === undefined || body.message === undefined) {
+      err = new Error("Expected both type and message to be set in body");
+    }
+
+    eventCallback(null, body.type, body.message);
+  };
 
   if (http === undefined) {
     http = {
@@ -101,10 +111,11 @@ function EventClient(initialUri, transitionCall, http, backoff, platform) {
 
   var strategy = new Strategy(function argsToObj(args) {
         return "{err: " + args[0] +
-               ", uri: " + args[1] +
-               ", status: " + args[2] +
-               ", headers: " + JSON.stringify(args[3]) +
-               ", body: " + JSON.stringify(args[4]) + "}";
+               //", delay: " + args[1] + // omitted because canHandle doesn't inspect it
+               ", uri: " + args[2] +
+               ", status: " + args[3] +
+               ", headers: " + JSON.stringify(args[4]) +
+               ", body: " + JSON.stringify(args[5]) + "}";
       });
       asyncPoller = new AsyncPoller(platform, strategy, http);
 
@@ -177,6 +188,32 @@ function EventClient(initialUri, transitionCall, http, backoff, platform) {
       }
 
       asyncPoller.poll(uri, backoff.clientErrorIncrease(delay));
+    }
+  });
+
+  strategy.add({
+    canHandle: function (err, uri, status, headers, body) {
+      return status === 403;
+    },
+    exec: function stratHttpsRequired(err, delay, uri, status, headers, body) {
+      if (backoff.clientErrorCallback) {
+        platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
+      }
+
+      throw new Error("HTTPS required. Aborting.");
+    }
+  });
+
+  strategy.add({
+    canHandle: function (err, uri, status, headers, body) {
+      return status === 401;
+    },
+    exec: function stratUnauthenticated(err, delay, uri, status, headers, body) {
+      if (backoff.clientErrorCallback) {
+        platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
+      }
+
+      throw new Error("Authentication required. Aborting.");
     }
   });
 

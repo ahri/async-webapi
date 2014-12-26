@@ -85,7 +85,7 @@ describe('The CommandClient class', function () {
 
   it('should post a command', function (done) {
     http.post = function (uri, data) {
-      if (uri === '/foo' && data === "bar") {
+      if (uri === 'foo' && data === "bar") {
         done();
       }
     };
@@ -100,10 +100,10 @@ describe('The CommandClient class', function () {
         calledFirst = false;
 
     http.post = function (uri, data, callback) {
-      if (uri === '/foo' && data === "bar") {
+      if (uri === 'foo' && data === "bar") {
         calledFirst = true;
       }
-      if (calledFirst && uri === '/xyz' && data === "123") {
+      if (calledFirst && uri === 'xyz' && data === "123") {
         done();
       }
 
@@ -234,6 +234,14 @@ describe('The CommandClient class', function () {
       };
 
       commandClient.exec("foo", "bar");
+    });
+  });
+
+  describe('edge cases', function () {
+    it('should be helpful when I specify an incorrect command', function () {
+      expect(function () {
+        commandClient.exec("doesnt/exist", 1);
+      }).to.throw("Command doesnt/exist does not exist");
     });
   });
 });
