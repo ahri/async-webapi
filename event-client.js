@@ -94,9 +94,9 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (backoff === undefined) {
     backoff = {
       timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 2; },
-      clientErrorIncrease: function (time) { return time * 2; },
-      waitingIncrease: function (time) { return 30000; },
+      serverErrorIncrease: function (time) { return time * 3000; },
+      clientErrorIncrease: function (time) { return time * 3000; },
+      waitingIncrease: function (time) { return 3000; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
       waitingCallback: function () {},
@@ -106,6 +106,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (platform === undefined) {
     platform = {
       setTimeout: setTimeout,
+      console: console,
     };
   }
 

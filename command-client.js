@@ -22,8 +22,8 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
   if (backoff === undefined) {
     backoff = {
       timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 2; },
-      clientErrorIncrease: function (time) { return time * 2; },
+      serverErrorIncrease: function (time) { return time * 3000; },
+      clientErrorIncrease: function (time) { return time * 3000; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
     };
