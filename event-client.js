@@ -170,7 +170,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status >= 500 && status < 600;
     },
     exec: function stratServerErr(err, delay, uri, status, headers, body) {
-      console.error(body);
+      platform.console.error(body);
       if (backoff.serverErrorCallback) {
         platform.setTimeout(function () { backoff.serverErrorCallback(uri, delay); }, 0);
       }
@@ -184,7 +184,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return err !== null && err !== undefined;
     },
     exec: function stratClientErr(err, delay, uri, status, headers, body) {
-      console.error(err);
+      platform.console.error(err);
       if (backoff.clientErrorCallback) {
         platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }
@@ -198,7 +198,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status === 403;
     },
     exec: function stratHttpsRequired(err, delay, uri, status, headers, body) {
-      console.error(body);
+      platform.console.error(body);
       if (backoff.clientErrorCallback) {
         platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }
@@ -212,7 +212,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status === 401;
     },
     exec: function stratUnauthenticated(err, delay, uri, status, headers, body) {
-      console.error(body);
+      platform.console.error(body);
       if (backoff.clientErrorCallback) {
         platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }

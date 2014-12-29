@@ -56,6 +56,9 @@ describe('The CommandClient class', function () {
       setTimeout: function (f, t) {
         return setTimeout(f, 0);
       },
+      console: {
+        error: function () {},
+      },
     };
     commandClient = new CommandClient(localApp, readModel, writeModel, http, backoff, platform);
   });
@@ -242,6 +245,29 @@ describe('The CommandClient class', function () {
       expect(function () {
         commandClient.exec("doesnt/exist", 1);
       }).to.throw("Command doesnt/exist does not exist");
+    });
+  });
+
+  describe('backoff behaviour', function () {
+    it('upon client error, should immediately back off, using the correct value in its call to the setTimeout platform method', function () {
+      http.post = function(uri, data, callback) {
+        callback(new Error("blah"), null, null, null, null);
+      };
+
+      backoff.clientErrorIncrease = function (currentTimeMs) { return currentTimeMs*10; };
+
+      platform.setTimeout = function (f, t) {
+        expect(t).to.equal(0);
+
+        platform.setTimeout = function (f, t) {
+          expect(t).to.equal(10);
+          platform.setTimeout = function () {}; // not interested in executing past this point
+        }
+
+        setTimeout(f, 0);
+      };
+
+      commandClient.exec("foo", "bar");
     });
   });
 });

@@ -32,6 +32,7 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
   if (platform === undefined) {
     platform = {
       setTimeout: setTimeout,
+      console: console,
     };
   }
 
@@ -64,10 +65,11 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
     }
 
     function errorState(increaseFunc, callback) {
+      var newBackoffTimeMs = increaseFunc(backoffTimeMs);
       platform.setTimeout(function () {
         self._lockedWaitingForErrorStateResolution = false;
-        self._sync(self._readModel.getFirst(), increaseFunc(backoffTimeMs));
-      }, backoffTimeMs);
+        self._sync(self._readModel.getFirst(), newBackoffTimeMs);
+      }, newBackoffTimeMs);
 
       platform.setTimeout((function () {
         callback(backoffTimeMs);
@@ -76,15 +78,15 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
 
     function callback(err, uri, status, headers, body) {
       if (err) {
-        console.error(err);
+        platform.console.error(err);
         errorState(self._backoff.clientErrorIncrease, self._backoff.clientErrorCallback);
       } else if (status >= 500 && status < 600) {
-        console.error(body);
+        platform.console.error(body);
         errorState(self._backoff.serverErrorIncrease, self._backoff.serverErrorCallback);
       } else if (status == 200) {
         normalState();
       } else {
-        console.error(body);
+        platform.console.error(body);
         throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
       }
     };

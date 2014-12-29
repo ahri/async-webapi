@@ -41,6 +41,9 @@ describe('The Event Client', function () {
       setTimeout: function (f, t) {
         return setTimeout(f, 0);
       },
+      console: {
+        error: function () {},
+      },
     };
   });
 
