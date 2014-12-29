@@ -35,6 +35,7 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
     };
   }
 
+  this._disabled = false;
   this._localApp = localApp;
   this._readModel = readModel;
   this._writeModel = writeModel;
@@ -45,6 +46,10 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
   this._lockedWaitingForErrorStateResolution = false;
 
   this._sync = function (cmd, backoffTimeMs) {
+    if (this._disabled) {
+      return;
+    }
+
     if (this._lockedWaitingForErrorStateResolution) {
       return;
     }
@@ -83,6 +88,10 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
 
     this._http.post(cmd.cmd, cmd.data, callback);
   };
+}
+
+CommandClient.prototype.disable = function () {
+  this._disabled = true;
 }
 
 CommandClient.prototype.exec = function (cmd, data) {
