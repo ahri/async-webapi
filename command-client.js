@@ -76,12 +76,15 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
 
     function callback(err, uri, status, headers, body) {
       if (err) {
+        console.error(err);
         errorState(self._backoff.clientErrorIncrease, self._backoff.clientErrorCallback);
       } else if (status >= 500 && status < 600) {
+        console.error(body);
         errorState(self._backoff.serverErrorIncrease, self._backoff.serverErrorCallback);
       } else if (status == 200) {
         normalState();
       } else {
+        console.error(body);
         throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
       }
     };
