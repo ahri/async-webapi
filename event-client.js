@@ -6,20 +6,18 @@ function AsyncPoller(platform, strategy, http) {
 }
 
 AsyncPoller.prototype.poll = function (uri, delay, callback) {
-  (function close(self) {
-    self._platform.setTimeout(function () {
-      if (!self._enabled) {
-        return;
-      }
+  this._platform.setTimeout.call(null, (function () {
+    if (!this._enabled) {
+      return;
+    }
 
-      self._http.get(uri, function (err, uri, status, headers, body) {
-        if (callback) {
-          self._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
-        }
-        self._strategy.exec(err, delay, uri, status, headers, body);
-      });
-    }, delay);
-  })(this);
+    this._http.get(uri, (function (err, uri, status, headers, body) {
+      if (callback) {
+        this._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
+      }
+      this._strategy.exec(err, delay, uri, status, headers, body);
+    }).bind(this));
+  }).bind(this), delay);
 };
 
 AsyncPoller.prototype.disable = function () {
@@ -79,16 +77,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   };
 
   if (http === undefined) {
-    http = {
-      get: function (uri, callback) {
-        var req = require('superagent');
-        req
-          .get(uri)
-          .end(function (err, res) {
-            callback(err, uri, res.status, res.headers, res.body);
-          });
-      },
-    };
+    throw new Error("Provide an http interface");
   }
 
   if (backoff === undefined) {
@@ -128,7 +117,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     },
     exec: function strat400NoEventsYet(err, delay, uri, status, headers, body) {
       if (backoff.waitingCallback) {
-        platform.setTimeout(function () { backoff.waitingCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.waitingCallback(uri, delay); }, 0);
       }
 
       asyncPoller.poll(uri, backoff.waitingIncrease(delay));
@@ -150,7 +139,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     },
     exec: function strat200NoNext(err, delay, uri, status, headers, body) {
       if (backoff.waitingCallback) {
-        platform.setTimeout(function () { backoff.waitingCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.waitingCallback(uri, delay); }, 0);
       }
 
       asyncPoller.poll(uri, backoff.waitingIncrease(delay));
@@ -173,7 +162,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     exec: function stratServerErr(err, delay, uri, status, headers, body) {
       platform.console.error(body);
       if (backoff.serverErrorCallback) {
-        platform.setTimeout(function () { backoff.serverErrorCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.serverErrorCallback(uri, delay); }, 0);
       }
 
       asyncPoller.poll(uri, backoff.serverErrorIncrease(delay));
@@ -187,7 +176,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     exec: function stratClientErr(err, delay, uri, status, headers, body) {
       platform.console.error(err);
       if (backoff.clientErrorCallback) {
-        platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }
 
       asyncPoller.poll(uri, backoff.clientErrorIncrease(delay));
@@ -201,7 +190,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     exec: function stratHttpsRequired(err, delay, uri, status, headers, body) {
       platform.console.error(body);
       if (backoff.clientErrorCallback) {
-        platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }
 
       throw new Error("HTTPS required. Aborting.");
@@ -215,7 +204,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     exec: function stratUnauthenticated(err, delay, uri, status, headers, body) {
       platform.console.error(body);
       if (backoff.clientErrorCallback) {
-        platform.setTimeout(function () { backoff.clientErrorCallback(uri, delay); }, 0);
+        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
       }
 
       throw new Error("Authentication required. Aborting.");
