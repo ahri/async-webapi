@@ -1,4 +1,5 @@
 'use strict';
+/* jslint esnext: true */
 
 let request = require('supertest'),
     expect = require('chai').expect,
@@ -24,22 +25,22 @@ function ReqPrimer(app) {
   self.noContent = function () {
     self._expectBody = false;
     return self;
-  }
+  };
 
   self.insecure = function () {
     self._secure = false;
     return self;
-  }
+  };
 
   self.expectCached = function () {
     self._expectCached = true;
     return self;
-  }
+  };
 
   self.expectStatus = function (status) {
     self._expectStatus = status;
     return self;
-  }
+  };
 
   self._query = function (func, query) {
     let result = func(query);
@@ -62,9 +63,9 @@ function ReqPrimer(app) {
     }
 
     if (self._expectCached) {
-      result.expect('cache-control', 'public, max-age=31536000')
+      result.expect('cache-control', 'public, max-age=31536000');
     } else {
-      result.expect('cache-control', 'public, max-age=0, no-cache, no-store')
+      result.expect('cache-control', 'public, max-age=0, no-cache, no-store');
     }
 
     result.expect(self._expectStatus);
@@ -81,11 +82,11 @@ function ReqPrimer(app) {
 
   self.get = function(query) {
     return self._query(self._app.get, query);
-  }
+  };
 
   self.post = function(query) {
     return self._query(self._app.post, query);
-  }
+  };
 }
 
 describe("For an app", function () {
@@ -116,7 +117,7 @@ describe("For an app", function () {
           '/events',
         ])
         .end(done);
-    })
+    });
 
     describe('should be secure, requiring X-Forwarded-Proto of https, returning 403 for', function () {
       let interestingEndpoints = ['/', '/services', '/commands', '/events'];
@@ -191,7 +192,7 @@ describe("For an app", function () {
             type: 'test',
             message: "event message",
             next: 'bar',
-          }
+          };
 
           appProvider.getEvent = function (req, eventId) {
             return event;
@@ -213,7 +214,7 @@ describe("For an app", function () {
             type: 'test',
             message: "event message",
             next: 'bar',
-          }
+          };
 
           appProvider.getEvent = function (req, eventId) {
             return event;
@@ -231,7 +232,7 @@ describe("For an app", function () {
           let event = {
             type: 'test',
             message: "event message",
-          }
+          };
 
           appProvider.getEvent = function (req, eventId) {
             return event;
@@ -284,7 +285,7 @@ describe("For an app", function () {
           .end(done);
       };
 
-      let commands = ["foo", "bar", "baz"]
+      let commands = ["foo", "bar", "baz"];
 
       for (let i = 0; i < commands.length; i++) {
         let cmd = commands[i];

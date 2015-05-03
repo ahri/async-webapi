@@ -1,4 +1,5 @@
 'use strict';
+/* jslint esnext: true */
 
 let koa = require('koa'),
     mount = require('koa-mount'),
@@ -19,7 +20,7 @@ function *errHandler(next) {
 
     this.body = {
       error: "500 - Internal Server Error",
-    }
+    };
 
     if (process.env.DEBUG) {
       this.body.message = ex.message;
@@ -228,7 +229,7 @@ AsyncWebApi.prototype._configureEvents = function () {
         type: ev.type,
         message: ev.message,
         next: EVENTS_PREFIX + '/' + ev.next,
-      }
+      };
     } else {
       this.body = ev;
     }
