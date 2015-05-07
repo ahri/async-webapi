@@ -87,7 +87,9 @@ describe('The CommandClient class', function () {
   });
 
   it('should post a command', function (done) {
-    http.post = function (uri, data) {
+    http.post = function (uri, data, callback) {
+      callback(null, uri, 204, {}, {});
+
       if (uri === 'foo' && data === "bar") {
         done();
       }

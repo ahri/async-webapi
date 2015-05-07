@@ -52,17 +52,10 @@ function cache(context) {
   context.set('cache-control', 'public, max-age=31536000');
 }
 
-function *cached(next) {
-  cache(this);
-  yield *next;
-}
-
 function *onlyOutputJson(next) {
   yield *next;
 
   if (this.body === undefined) {
-    this.body = '';
-    this.set('Content-Type', 'application/json');
     return;
   }
 
@@ -81,14 +74,14 @@ function *onlyOutputJson(next) {
 }
 
 function *requireJsonPost(next) {
-  if (this.req.method !== 'POST') {
-    this.status = 405;
+  if (this.request.method !== 'POST') {
+    doError(this, 405, "Method Not Allowed", "Only POST is allowed");
     this.set('Allow', 'POST (application/json)');
     return;
   }
 
   if (this.header['content-type'] !== 'application/json') {
-    this.status = 406;
+    doError(this, 406, "Not Acceptable", "Only 'Content-Type: application/json' is accepted");
     this.set('Allow', 'POST (application/json)');
     return;
   }
@@ -96,14 +89,20 @@ function *requireJsonPost(next) {
   yield *next;
 }
 
-function do404(context) {
-  context.status = 404;
+function doError(context, code, name, detail) {
+  context.status = code;
   context.body = {
-    error: "404 - Missing",
-    detail: "The item you're looking for doesn't exist"
+    error: code + " - " + name,
   };
+
+  if (detail) {
+    context.body.detail = detail;
+  }
 }
 
+function do404(context) {
+  doError(context, 404, "Missing", "The item you're looking for doesn't exist");
+}
 
 function AsyncWebApi(appFacade) {
   if (appFacade === undefined) {
@@ -173,6 +172,7 @@ AsyncWebApi.prototype._configureCommandsForDomain = function () {
     cmd.use(requireJsonPost);
     cmd.use(function *() {
       self._appFacade.executeCommand(this, commandName, this.request.body);
+      this.status = 204;
     });
   }
 
@@ -201,14 +201,12 @@ AsyncWebApi.prototype._configureEvents = function () {
     if (this.path === "/") {
       let first = self._appFacade.getFirstEventId(this);
       if (first === undefined) {
-        this.status = 400;
-        this.body = {
-          error: "400 - Bad Request",
-          detail: "No events exist",
-        };
+        this.status = 204;
       } else {
-        this.status = 302;
-        this.set('Location', EVENTS_PREFIX + '/' + first);
+        this.status = 200;
+        this.body = {
+          next: EVENTS_PREFIX + '/' + first
+        };
       }
 
       return;
@@ -224,7 +222,9 @@ AsyncWebApi.prototype._configureEvents = function () {
     }
 
     if (ev.next) {
-      cache(this);
+      if (!process.env.DEBUG) {
+        cache(this);
+      }
       this.body = {
         type: ev.type,
         message: ev.message,

@@ -1,3 +1,5 @@
+'use strict';
+
 function AsyncPoller(platform, strategy, http) {
   this._platform = platform;
   this._strategy = strategy;
@@ -13,7 +15,7 @@ AsyncPoller.prototype.poll = function (uri, delay, callback) {
 
     this._http.get(uri, (function (err, uri, status, headers, body) {
       if (callback) {
-        this._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
+        this._platform.setTimeout.call(null, function () { callback(err, uri, status, headers, body); }, 0);
       }
       this._strategy.exec(err, delay, uri, status, headers, body);
     }).bind(this));
@@ -22,7 +24,7 @@ AsyncPoller.prototype.poll = function (uri, delay, callback) {
 
 AsyncPoller.prototype.disable = function () {
   this._enabled = false;
-}
+};
 
 function Strategy(debug) {
   this._debug = debug || function (args) {
@@ -83,8 +85,8 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (backoff === undefined) {
     backoff = {
       timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 3000; },
-      clientErrorIncrease: function (time) { return time * 3000; },
+      serverErrorIncrease: function (time) { return (time + 1) * 3000; },
+      clientErrorIncrease: function (time) { return (time + 1) * 3000; },
       waitingIncrease: function (time) { return 3000; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
@@ -100,22 +102,22 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   }
 
   var strategy = new Strategy(function argsToObj(args) {
-        return "{err: " + args[0] +
-               //", delay: " + args[1] + // omitted because canHandle doesn't inspect it
-               ", uri: " + args[2] +
-               ", status: " + args[3] +
-               ", headers: " + JSON.stringify(args[4]) +
-               ", body: " + JSON.stringify(args[5]) + "}";
-      });
-      asyncPoller = new AsyncPoller(platform, strategy, http);
+    return "{err: " + args[0] +
+           //", delay: " + args[1] + // omitted because canHandle doesn't inspect it
+           ", uri: " + args[2] +
+           ", status: " + args[3] +
+           ", headers: " + JSON.stringify(args[4]) +
+           ", body: " + JSON.stringify(args[5]) + "}";
+  });
 
+  var asyncPoller = new AsyncPoller(platform, strategy, http);
   this._asyncPoller = asyncPoller;
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return status === 400;
+      return status === 204;
     },
-    exec: function strat400NoEventsYet(err, delay, uri, status, headers, body) {
+    exec: function strat204NoEventsYet(err, delay, uri, status, headers, body) {
       if (backoff.waitingCallback) {
         platform.setTimeout.call(null, function () { backoff.waitingCallback(uri, delay); }, 0);
       }
@@ -126,16 +128,16 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return status === 302;
+      return status === 200 && body.message === undefined && body.next !== undefined;
     },
-    exec: function strat302FirstEvent(err, delay, uri, status, headers, body) {
-      asyncPoller.poll(headers['location'], backoff.timeMs, transitionCall);
+    exec: function strat200FirstEvent(err, delay, uri, status, headers, body) {
+      asyncPoller.poll(body.next, backoff.timeMs, transitionCall);
     }
   });
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return status === 200 && body.next === undefined;
+      return status === 200 && body.message !== undefined && body.next === undefined;
     },
     exec: function strat200NoNext(err, delay, uri, status, headers, body) {
       if (backoff.waitingCallback) {
@@ -148,7 +150,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return status === 200 && body.next !== undefined;
+      return status === 200 && body.message !== undefined && body.next !== undefined;
     },
     exec: function strat200WithNext(err, delay, uri, status, headers, body) {
       asyncPoller.poll(body.next, backoff.timeMs, transitionCall);
@@ -211,7 +213,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     }
   });
 
-  asyncPoller.poll(initialUri, 0);
+  asyncPoller.poll(initialUri, 1);
 }
 
 EventClient.prototype.disable = function () {

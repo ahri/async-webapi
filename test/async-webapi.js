@@ -55,20 +55,40 @@ function ReqPrimer(app) {
 
     // general expectations
     if (self._expectJson) {
-      result.expect('Content-Type', /json/);
+      result.expect(function (res) {
+        if (res.header['content-type'] !== 'application/json; charset=utf-8') {
+          return "expected 'Content-Type: application/json; charset=utf-8', got " + res.header['content-type'];
+        }
+      });
+    } else {
+      result.expect(function (res) {
+        if (res.header['content-type'] !== undefined) {
+          return "Content-Type header should not be present, it was set to " + res.header['content-type'] + ", detail: " + JSON.stringify(res.body);
+        }
+      });
     }
 
     if (!self._expectBody) {
       result.expect('');
+      // result.expect(function (res) {
+      //   if (res.body && res.body !== {}) {
+      //     // TODO: get rid of headers
+      //     return "Empty body expected, but got: " + JSON.stringify(res.body);
+      //   }
+      // });
     }
 
-    if (self._expectCached) {
+    if (self._expectCached && !process.env.DEBUG) {
       result.expect('cache-control', 'public, max-age=31536000');
     } else {
       result.expect('cache-control', 'public, max-age=0, no-cache, no-store');
     }
 
-    result.expect(self._expectStatus);
+    result.expect(function (res) {
+      if (res.status !== self._expectStatus) {
+        return "expected " + self._expectStatus + ", got " + res.status + ", detail: " + JSON.stringify(res.body);
+      }
+    });
 
     /*// Error passthrough
     result.expect(function (res) {
@@ -94,7 +114,9 @@ describe("For an app", function () {
   beforeEach(function () {
     appProvider = {
       getListOfCommands: function () { return []; },
-      executeCommand: function (req, command, message) {},
+      executeCommand: function (req, command, message) {
+        console.log('actually executing', command);
+      },
       getFirstEventId: function (req) {},
       getEvent: function (req, eventId) {},
     };
@@ -164,9 +186,10 @@ describe("For an app", function () {
       ));
     });
 
-    it('should 400 when there are no events but /events is queried', function (done) {
+    it('should 204 when there are no events but /events is queried', function (done) {
       app
-        .expectStatus(400)
+        .notJson()
+        .expectStatus(204)
         .get('/events')
         .end(done);
     });
@@ -179,10 +202,11 @@ describe("For an app", function () {
         };
 
         app
-          .notJson()
-          .expectStatus(302)
+          .expectStatus(200)
           .get('/events')
-          .expect('Location', '/events/' + firstEventId)
+          .expect({
+            next: '/events/' + firstEventId,
+          })
           .end(done);
       });
 
@@ -300,7 +324,6 @@ describe("For an app", function () {
     describe('http method usage', function () {
       it('should not allow GET for commands', function (done) {
         app
-          .notJson()
           .expectStatus(405)
           .get('/commands/foo')
           .expect('Allow', 'POST (application/json)')
@@ -309,7 +332,6 @@ describe("For an app", function () {
 
       it('should not allow non-JSON POSTs for commands', function (done) {
         app
-          .notJson()
           .expectStatus(406)
           .post('/commands/foo')
           .expect('Allow', 'POST (application/json)')
@@ -318,6 +340,8 @@ describe("For an app", function () {
 
       it('should not receive content from POST for commands', function (done) {
         app
+          .expectStatus(204)
+          .notJson()
           .noContent()
           .post('/commands/foo')
           .send({id: 'blah', name: 'foo'})
@@ -335,10 +359,4 @@ describe("For an app", function () {
       });
     });
   });
-
-  /*describe.skip('An initialisation', function () {
-    it.skip('should bringing up a new copy of mapdone-api with the existing event stream, allowing commands to be executed as expected, i.e. the system is event-sourced');
-  });*/
-
-  // need to test Users
 });

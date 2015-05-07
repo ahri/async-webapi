@@ -83,7 +83,7 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
       } else if (status >= 500 && status < 600) {
         platform.console.error(body);
         errorState(self._backoff.serverErrorIncrease, self._backoff.serverErrorCallback);
-      } else if (status == 200) {
+      } else if (status >= 200 && status < 300) {
         normalState();
       } else {
         platform.console.error(body);

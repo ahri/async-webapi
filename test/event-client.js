@@ -53,8 +53,8 @@ describe('The Event Client', function () {
 
   it('should call a transition callback when moving from /events to /events/1', function (done) {
     var dummyServer = new DummyServer([
-      [null, '/events', 302, {location: '/events/1'}, {}],
-      [null, '/events/1', 200, {}, {}],
+      [null, '/events', 200, {}, {next: '/events/1'}],
+      [null, '/events/1', 200, {}, {message: "at head"}],
     ]);
 
     var transition = function (err, type, message) {
@@ -66,8 +66,8 @@ describe('The Event Client', function () {
 
   it('should traverse all events up to the head', function (done) {
     var dummyServer = new DummyServer([
-      [null, '/events', 302, {location: '/events/1'}, {}],
-      [null, '/events/1', 200, {}, {next: '/events/2'}],
+      [null, '/events', 200, {}, {next: '/events/1'}],
+      [null, '/events/1', 200, {}, {message: "foo", next: '/events/2'}],
       [null, '/events/2', 200, {}, {message: "at head"}],
     ]);
 
@@ -83,11 +83,11 @@ describe('The Event Client', function () {
     client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
-  it('should poll normally if it receives a 400 - there are no events', function (done) {
+  it('should poll normally if it receives a 204 - there are no events', function (done) {
     var dummyServer = new DummyServer([
-      [null, '/events', 400, {}, {}],
-      [null, '/events', 302, {location: '/events/1'}, {}],
-      [null, '/events/1', 200, {}, {}], // NB. transition call happens when we move to here
+      [null, '/events', 204, {}, {}],
+      [null, '/events', 200, {}, {next: '/events/1'}],
+      [null, '/events/1', 200, {}, {message: "at head"}], // NB. transition call happens when we move to here
     ]);
 
     var transition = function (err, type, message) { done(); };
