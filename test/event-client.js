@@ -29,8 +29,8 @@ describe('The Event Client', function () {
   beforeEach(function () {
     backoff = {
       timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 2; },
-      clientErrorIncrease: function (time) { return time * 2; },
+      serverErrorIncrease: function (time) { return time + 2; },
+      clientErrorIncrease: function (time) { return time + 3; },
       waitingIncrease: function (time) { return 1; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
@@ -107,7 +107,8 @@ describe('The Event Client', function () {
         }
       };
 
-      backoff.serverErrorCallback = function () {
+      backoff.serverErrorCallback = function (uri, err, delay) {
+        expect(delay).to.equal(2);
         done();
       };
 
@@ -127,7 +128,8 @@ describe('The Event Client', function () {
         }
       };
 
-      backoff.clientErrorCallback = function () {
+      backoff.clientErrorCallback = function (uri, err, delay) {
+        expect(delay).to.equal(3);
         done();
       };
 
@@ -136,32 +138,30 @@ describe('The Event Client', function () {
   });
 
   describe('edge cases', function () {
-    it('https required should kill off the client', function () {
+    it.skip('https required should kill off the client', function (done) {
       var dummyServer = new DummyServer([
-        [null, '/events', 403, {}, {}],
+        [new Error("https required"), '/events', 403, {}, {}],
       ]);
 
-      backoff.clientErrorCallback = function () {
+      backoff.clientErrorCallback = function (uri, err, delay) {
+        expect(err.message).to.equal("https required");
         done();
       };
 
-      expect(function () {
-        new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
-      }).to.throw;
+      new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
     });
 
-    it('authentication required should kill off the client', function () {
+    it.skip('authentication required should kill off the client', function (done) {
       var dummyServer = new DummyServer([
-        [null, '/events', 401, {}, {}],
+        [new Error("unauthorized"), '/events', 401, {}, {}],
       ]);
 
-      backoff.clientErrorCallback = function () {
+      backoff.clientErrorCallback = function (uri, err, delay) {
+        expect(err.message).to.equal("unauthorized");
         done();
       };
 
-      expect(function () {
-        new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
-      }).to.throw;
+      new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
     });
   });
 });

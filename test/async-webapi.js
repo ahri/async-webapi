@@ -114,9 +114,7 @@ describe("For an app", function () {
   beforeEach(function () {
     appProvider = {
       getListOfCommands: function () { return []; },
-      executeCommand: function (req, command, message) {
-        console.log('actually executing', command);
-      },
+      executeCommand: function (req, command, message) {},
       getFirstEventId: function (req) {},
       getEvent: function (req, eventId) {},
     };

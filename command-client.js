@@ -31,7 +31,7 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
 
   if (platform === undefined) {
     platform = {
-      setTimeout: setTimeout,
+      setTimeout: function() { setTimeout.apply(null, arguments); },
       console: console,
     };
   }

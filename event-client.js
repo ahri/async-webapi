@@ -8,14 +8,14 @@ function AsyncPoller(platform, strategy, http) {
 }
 
 AsyncPoller.prototype.poll = function (uri, delay, callback) {
-  this._platform.setTimeout.call(null, (function () {
+  this._platform.setTimeout((function () {
     if (!this._enabled) {
       return;
     }
 
     this._http.get(uri, (function (err, uri, status, headers, body) {
       if (callback) {
-        this._platform.setTimeout.call(null, function () { callback(err, uri, status, headers, body); }, 0);
+        this._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
       }
       this._strategy.exec(err, delay, uri, status, headers, body);
     }).bind(this));
@@ -85,18 +85,18 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (backoff === undefined) {
     backoff = {
       timeMs: 1,
-      serverErrorIncrease: function (time) { return (time + 1) * 3000; },
-      clientErrorIncrease: function (time) { return (time + 1) * 3000; },
-      waitingIncrease: function (time) { return 3000; },
-      serverErrorCallback: function () {},
-      clientErrorCallback: function () {},
+      serverErrorIncrease: function (time) { return time + 5000; },
+      clientErrorIncrease: function (time) { return time + 10000; },
+      waitingIncrease: function (time) { return 500; }, // NB. this is static
+      serverErrorCallback: function (uri, err, delay) { platform.console.log("Server error polling " + uri + ", waiting " + delay + "ms"); },
+      clientErrorCallback: function (uri, err, delay) { platform.console.log("Client error polling " + uri + ", waiting " + delay + "ms"); },
       waitingCallback: function () {},
     };
   }
 
   if (platform === undefined) {
     platform = {
-      setTimeout: setTimeout,
+      setTimeout: function() { setTimeout.apply(null, arguments); },
       console: console,
     };
   }
@@ -118,11 +118,12 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status === 204;
     },
     exec: function strat204NoEventsYet(err, delay, uri, status, headers, body) {
+      delay = backoff.waitingIncrease(delay);
       if (backoff.waitingCallback) {
-        platform.setTimeout.call(null, function () { backoff.waitingCallback(uri, delay); }, 0);
+        platform.setTimeout(function () { backoff.waitingCallback(uri, delay); }, 0);
       }
 
-      asyncPoller.poll(uri, backoff.waitingIncrease(delay));
+      asyncPoller.poll(uri, delay);
     }
   });
 
@@ -141,7 +142,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     },
     exec: function strat200NoNext(err, delay, uri, status, headers, body) {
       if (backoff.waitingCallback) {
-        platform.setTimeout.call(null, function () { backoff.waitingCallback(uri, delay); }, 0);
+        platform.setTimeout(function () { backoff.waitingCallback(uri, delay); }, 0);
       }
 
       asyncPoller.poll(uri, backoff.waitingIncrease(delay));
@@ -163,57 +164,31 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     },
     exec: function stratServerErr(err, delay, uri, status, headers, body) {
       platform.console.error(body);
+      delay = backoff.serverErrorIncrease(delay);
       if (backoff.serverErrorCallback) {
-        platform.setTimeout.call(null, function () { backoff.serverErrorCallback(uri, delay); }, 0);
+        platform.setTimeout(function () { backoff.serverErrorCallback(uri, err, delay); }, 0);
       }
 
-      asyncPoller.poll(uri, backoff.serverErrorIncrease(delay));
+      asyncPoller.poll(uri, delay);
     }
   });
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
-      return err !== null && err !== undefined;
+      return err !== undefined && err !== null;
     },
     exec: function stratClientErr(err, delay, uri, status, headers, body) {
+      delay = backoff.clientErrorIncrease(delay);
       platform.console.error(err);
       if (backoff.clientErrorCallback) {
-        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
+        platform.setTimeout(function () { backoff.clientErrorCallback(uri, err, delay); }, 0);
       }
 
-      asyncPoller.poll(uri, backoff.clientErrorIncrease(delay));
+      asyncPoller.poll(uri, delay);
     }
   });
 
-  strategy.add({
-    canHandle: function (err, uri, status, headers, body) {
-      return status === 403;
-    },
-    exec: function stratHttpsRequired(err, delay, uri, status, headers, body) {
-      platform.console.error(body);
-      if (backoff.clientErrorCallback) {
-        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
-      }
-
-      throw new Error("HTTPS required. Aborting.");
-    }
-  });
-
-  strategy.add({
-    canHandle: function (err, uri, status, headers, body) {
-      return status === 401;
-    },
-    exec: function stratUnauthenticated(err, delay, uri, status, headers, body) {
-      platform.console.error(body);
-      if (backoff.clientErrorCallback) {
-        platform.setTimeout.call(null, function () { backoff.clientErrorCallback(uri, delay); }, 0);
-      }
-
-      throw new Error("Authentication required. Aborting.");
-    }
-  });
-
-  asyncPoller.poll(initialUri, 1);
+  asyncPoller.poll(initialUri, 0);
 }
 
 EventClient.prototype.disable = function () {
