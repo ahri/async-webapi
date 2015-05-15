@@ -28,7 +28,6 @@ describe('The Event Client', function () {
 
   beforeEach(function () {
     backoff = {
-      timeMs: 1,
       serverErrorIncrease: function (time) { return time + 2; },
       clientErrorIncrease: function (time) { return time + 3; },
       waitingIncrease: function (time) { return 1; },

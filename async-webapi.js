@@ -1,5 +1,5 @@
 'use strict';
-/* jslint esnext: true */
+/* jslint esnext: true, noyield: true */
 
 let koa = require('koa'),
     mount = require('koa-mount'),
@@ -30,6 +30,8 @@ function *errHandler(next) {
 }
 
 function *onlyHttps(next) {
+  // TODO: normally we wouldn't get forwarded protocol stuff
+  /* jslint validthis: true */
   if (this.header['x-forwarded-proto'] !== 'https') {
     this.status = 403;
     this.body = {
@@ -43,7 +45,28 @@ function *onlyHttps(next) {
   yield *next;
 }
 
+function sendCorsHeaders(allowedHeaderNames) {
+  return function *sendCorsHeaders(next) {
+    /* jslint validthis: true */
+    this.set('Access-Control-Allow-Origin', '*');
+    this.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    this.set('Access-Control-Allow-Headers', allowedHeaderNames.join(', '));
+    yield *next;
+  };
+}
+
+function *corsPreflight(next) {
+  /* jslint validthis: true */
+  if (this.method === 'OPTIONS' && this.header['access-control-request-method'] !== undefined) {
+    this.body = "Yup, that's cool.";
+    return;
+  }
+
+  yield *next;
+}
+
 function *notCached(next) {
+  /* jslint validthis: true */
   this.set('cache-control', 'public, max-age=0, no-cache, no-store');
   yield *next;
 }
@@ -55,6 +78,7 @@ function cache(context) {
 function *onlyOutputJson(next) {
   yield *next;
 
+  /* jslint validthis: true */
   if (this.body === undefined) {
     return;
   }
@@ -74,6 +98,7 @@ function *onlyOutputJson(next) {
 }
 
 function *requireJsonPost(next) {
+  /* jslint validthis: true */
   if (this.request.method !== 'POST') {
     doError(this, 405, "Method Not Allowed", "Only POST is allowed");
     this.set('Allow', 'POST (application/json)');
@@ -118,6 +143,8 @@ function AsyncWebApi(appFacade) {
   this._appsCallbacks = [];
   this._apps = [];
 
+  this._corsAllowedHeaderNames = ['Content-Type'];
+
   this.withApp('commands', this._commandsApp);
   this.withApp('events', this._eventsApp);
 }
@@ -131,6 +158,11 @@ AsyncWebApi.prototype.withApp = function (name, app) {
 
 AsyncWebApi.prototype.withAppsCallback = function (appsCallback) {
   this._appsCallbacks.push(appsCallback);
+  return this;
+};
+
+AsyncWebApi.prototype.withAllowedCorsHeaders = function (headerNames) {
+  this._corsAllowedHeaderNames = this._corsAllowedHeaderNames.concat(headerNames);
   return this;
 };
 
@@ -167,6 +199,7 @@ AsyncWebApi.prototype._configureCommandsForDomain = function () {
 
   function commandPassthrough(commandName) {
     let cmd = koa();
+
     self._commandsApp.use(mount('/' + commandName, cmd));
     cmd.use(body());
     cmd.use(requireJsonPost);
@@ -188,7 +221,9 @@ AsyncWebApi.prototype._configureCommandsForDomain = function () {
       return;
     }
 
-    this.body = commands.map(function (command) { return '/commands/' + command; });
+    this.body = commands.map(function (command) {
+      return '/commands/' + command; }
+    );
   });
 };
 
@@ -240,10 +275,13 @@ AsyncWebApi.prototype.build = function factory() {
   if (process.env.DEBUG) {
     this._rootApp.use(logger());
   }
+  this._rootApp.use(sendCorsHeaders(this._corsAllowedHeaderNames));
+  this._rootApp.use(corsPreflight);
+
   this._rootApp.use(notCached);
   this._rootApp.use(errHandler);
-  this._rootApp.use(onlyOutputJson);
-  this._rootApp.use(onlyHttps);
+  // this._rootApp.use(onlyOutputJson);
+  // this._rootApp.use(onlyHttps);
 
   this._executeAppsCallbacks();
   this._mountAppsAtRoot();

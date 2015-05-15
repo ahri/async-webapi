@@ -129,6 +129,13 @@ describe("For an app", function () {
       ));
     });
 
+    it('should allow CORS', function (done) {
+      app
+        .get('/')
+        .expect('Access-Control-Allow-Origin', '*')
+        .end(done);
+    });
+
     it('should respond with a more extensive listing at / with an API key', function (done) {
       app
         .get('/')

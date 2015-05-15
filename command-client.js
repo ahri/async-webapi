@@ -21,9 +21,8 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
 
   if (backoff === undefined) {
     backoff = {
-      timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 3000; },
-      clientErrorIncrease: function (time) { return time * 3000; },
+      serverErrorIncrease: function (time) { return time + 5000; },
+      clientErrorIncrease: function (time) { return time + 10000; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
     };
@@ -43,81 +42,77 @@ function CommandClient(localApp, readModel, writeModel, http, backoff, platform)
   this._http = http;
   this._backoff = backoff;
   this._platform = platform;
-
-  this._lockedWaitingForErrorStateResolution = false;
-
-  this._sync = function (cmd, backoffTimeMs) {
-    if (this._disabled) {
-      return;
-    }
-
-    if (this._lockedWaitingForErrorStateResolution) {
-      return;
-    }
-
-    this._lockedWaitingForErrorStateResolution = true;
-
-    var self = this;
-
-    function normalState() {
-      self._writeModel.removeFirst();
-      self._lockedWaitingForErrorStateResolution = false;
-    }
-
-    function errorState(increaseFunc, callback) {
-      var newBackoffTimeMs = increaseFunc(backoffTimeMs);
-      platform.setTimeout(function () {
-        self._lockedWaitingForErrorStateResolution = false;
-        self._sync(self._readModel.getFirst(), newBackoffTimeMs);
-      }, newBackoffTimeMs);
-
-      platform.setTimeout((function () {
-        callback(backoffTimeMs);
-      })(), 0);
-    }
-
-    function callback(err, uri, status, headers, body) {
-      if (err) {
-        platform.console.error(err);
-        errorState(self._backoff.clientErrorIncrease, self._backoff.clientErrorCallback);
-      } else if (status >= 500 && status < 600) {
-        platform.console.error(body);
-        errorState(self._backoff.serverErrorIncrease, self._backoff.serverErrorCallback);
-      } else if (status >= 200 && status < 300) {
-        normalState();
-      } else {
-        platform.console.error(body);
-        throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
-      }
-    };
-
-    this._http.post(cmd.cmd, cmd.data, callback);
-  };
 }
+
+CommandClient.prototype._exhaustQueue = function (delay) {
+  var firstCommand = this._readModel.getFirst();
+  if (!firstCommand) {
+    this._busy = false;
+    return;
+  }
+
+  delay = delay || 0;
+  this._busy = true;
+  var self = this;
+
+  function normalState() {
+    self._writeModel.removeFirst();
+    self._platform.setTimeout(function () {
+      self._exhaustQueue();
+    }, 0);
+  }
+
+  function errorState(increaseFunc, callback) {
+    var newDelay = increaseFunc(delay);
+
+    self._platform.setTimeout(function () {
+      callback(newDelay);
+    }, 0);
+
+    self._platform.setTimeout(function () {
+      self._exhaustQueue(newDelay);
+    }, newDelay);
+  }
+
+  function callback(err, uri, status, headers, body) {
+    if (err) {
+      self._platform.console.error(err);
+      errorState(self._backoff.clientErrorIncrease, self._backoff.clientErrorCallback);
+    } else if (status >= 500 && status < 600) {
+      self._platform.console.error(body);
+      errorState(self._backoff.serverErrorIncrease, self._backoff.serverErrorCallback);
+    } else if (status >= 200 && status < 300) {
+      normalState();
+    } else {
+      self._platform.console.error(body);
+      throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
+    }
+  };
+
+  this._http.post(firstCommand.cmd, firstCommand.data, callback);
+};
 
 CommandClient.prototype.disable = function () {
   this._disabled = true;
 }
 
-CommandClient.prototype.exec = function (cmd, data) {
+CommandClient.prototype.callLocalQueueNetwork = function (cmd, data) {
   var cmdFunc = this._localApp[cmd];
   if (cmdFunc === undefined) {
     throw new Error("Command " + cmd + " does not exist");
   }
   cmdFunc.call(this._localApp, data);
   this._writeModel.add(cmd, data);
+};
 
-  var self = this;
-  this._platform.setTimeout(function () {
-    while (true) {
-      var firstCommand = self._readModel.getFirst();
-      if (!firstCommand || self._lockedWaitingForErrorStateResolution) {
-        break;
-      }
+CommandClient.prototype.exec = function (cmd, data) {
+  this.callLocalQueueNetwork(cmd, data);
 
-      self._sync(firstCommand, self._backoff.timeMs);
-    }
-  }, 0);
+  if (this._disabled || this._busy) {
+    return;
+  }
+
+  this._platform.setTimeout((function () { this._exhaustQueue.call(this); }).bind(this), 0);
 };
 
 module.exports = CommandClient;

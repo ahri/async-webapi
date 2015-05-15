@@ -8,18 +8,20 @@ function AsyncPoller(platform, strategy, http) {
 }
 
 AsyncPoller.prototype.poll = function (uri, delay, callback) {
-  this._platform.setTimeout((function () {
-    if (!this._enabled) {
+  var self = this;
+
+  this._platform.setTimeout(function () {
+    if (!self._enabled) {
       return;
     }
 
-    this._http.get(uri, (function (err, uri, status, headers, body) {
+    self._http.get(uri, function (err, uri, status, headers, body) {
       if (callback) {
-        this._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
+        self._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
       }
-      this._strategy.exec(err, delay, uri, status, headers, body);
-    }).bind(this));
-  }).bind(this), delay);
+      self._strategy.exec(err, delay, uri, status, headers, body);
+    });
+  }, delay);
 };
 
 AsyncPoller.prototype.disable = function () {
@@ -84,7 +86,6 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
 
   if (backoff === undefined) {
     backoff = {
-      timeMs: 1,
       serverErrorIncrease: function (time) { return time + 5000; },
       clientErrorIncrease: function (time) { return time + 10000; },
       waitingIncrease: function (time) { return 500; }, // NB. this is static
@@ -132,7 +133,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status === 200 && body.message === undefined && body.next !== undefined;
     },
     exec: function strat200FirstEvent(err, delay, uri, status, headers, body) {
-      asyncPoller.poll(body.next, backoff.timeMs, transitionCall);
+      asyncPoller.poll(body.next, backoff.waitingIncrease(delay), transitionCall);
     }
   });
 
@@ -154,7 +155,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status === 200 && body.message !== undefined && body.next !== undefined;
     },
     exec: function strat200WithNext(err, delay, uri, status, headers, body) {
-      asyncPoller.poll(body.next, backoff.timeMs, transitionCall);
+      asyncPoller.poll(body.next, backoff.waitingIncrease(delay), transitionCall);
     }
   });
 

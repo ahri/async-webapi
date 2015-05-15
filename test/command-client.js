@@ -46,9 +46,8 @@ describe('The CommandClient class', function () {
       }
     };
     backoff = {
-      timeMs: 1,
-      serverErrorIncrease: function (time) { return time * 2; },
-      clientErrorIncrease: function (time) { return time * 2; },
+      serverErrorIncrease: function (time) { return (time + 1) * 2; },
+      clientErrorIncrease: function (time) { return (time + 1) * 2; },
       serverErrorCallback: function () {},
       clientErrorCallback: function () {},
     };
@@ -99,12 +98,13 @@ describe('The CommandClient class', function () {
   });
 
   it('should post two commands in order', function (done) {
-    writeModel.add('foo', 'bar');
+    commandClient.callLocalQueueNetwork('foo', 'bar');
 
     let httpPost = http.post,
         calledFirst = false;
 
     http.post = function (uri, data, callback) {
+      console.log(uri, data);
       if (uri === 'foo' && data === "bar") {
         calledFirst = true;
       }
@@ -112,7 +112,9 @@ describe('The CommandClient class', function () {
         done();
       }
 
-      httpPost.call(http, uri, data, callback);
+      setTimeout(function () {
+        callback(null, uri, 200, {}, {});
+      }, 10);
     };
 
     commandClient.exec("xyz", "123");
@@ -144,13 +146,12 @@ describe('The CommandClient class', function () {
     });
 
     it('should use the backoff to determine backoff time increase at each error', function (done) {
-      backoff.timeMs = 1;
       backoff.serverErrorIncrease = function (currentTimeMs) {
         if (currentTimeMs === 2) {
           done();
         }
 
-        return currentTimeMs * 2;
+        return (currentTimeMs + 1) * 2;
       };
 
       var call = 0;
@@ -165,8 +166,7 @@ describe('The CommandClient class', function () {
     });
 
     it('should call the backoff callback letting it know the current backoff time', function (done) {
-      backoff.timeMs = 1;
-      backoff.serverErrorIncrease = function (currentTimeMs) { return currentTimeMs*2; };
+      backoff.serverErrorIncrease = function (currentTimeMs) { return (currentTimeMs+1)*2; };
       backoff.serverErrorCallback = function (currentTimeMs) {
         if (currentTimeMs === 2) {
           done();
@@ -201,13 +201,12 @@ describe('The CommandClient class', function () {
     });
 
     it('should use the backoff to determine backoff time increase at each error', function (done) {
-      backoff.timeMs = 1;
       backoff.clientErrorIncrease = function (currentTimeMs) {
         if (currentTimeMs === 2) {
           done();
         }
 
-        return currentTimeMs * 2;
+        return (currentTimeMs + 1) * 2;
       };
 
       var call = 0;
@@ -222,8 +221,7 @@ describe('The CommandClient class', function () {
     });
 
     it('should call the backoff callback letting it know the current backoff time', function (done) {
-      backoff.timeMs = 1;
-      backoff.clientErrorIncrease = function (currentTimeMs) { return currentTimeMs*2; };
+      backoff.clientErrorIncrease = function (currentTimeMs) { return (currentTimeMs+1)*2; };
       backoff.clientErrorCallback = function (currentTimeMs) {
         if (currentTimeMs === 2) {
           done();
@@ -250,19 +248,33 @@ describe('The CommandClient class', function () {
     });
   });
 
+  describe('callLocalQueueNetwork', function () {
+    it('should not fire anything off when callLocalQueueNetwork() is called', function () {
+      http.post = function(uri, data, callback) {
+        throw new Error("Should not be called"); // TODO: async failure by calling?
+      };
+
+      commandClient.callLocalQueueNetwork("foo", "bar");
+    });
+  });
+
   describe('backoff behaviour', function () {
     it('upon client error, should immediately back off, using the correct value in its call to the setTimeout platform method', function () {
       http.post = function(uri, data, callback) {
         callback(new Error("blah"), null, null, null, null);
       };
 
-      backoff.clientErrorIncrease = function (currentTimeMs) { return currentTimeMs*10; };
+      backoff.clientErrorIncrease = function (currentTimeMs) { return (currentTimeMs+1)*10; };
 
+      var calls = 0;
       platform.setTimeout = function (f, t) {
-        expect(t).to.equal(0);
-
-        platform.setTimeout = function (f, t) {
+        calls++;
+        if (calls === 3) { // initial, err callback, delay
           expect(t).to.equal(10);
+        }
+
+        if (calls === 5) { // err callback, delay
+          expect(t).to.equal(110);
           platform.setTimeout = function () {}; // not interested in executing past this point
         }
 
