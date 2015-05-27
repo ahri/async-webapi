@@ -1,14 +1,34 @@
 'use strict';
 /* jslint esnext: true */
 
-let request = require('supertest'),
+let http = require('http'),
+    request = require('supertest'),
     expect = require('chai').expect,
-    AsyncWebApi = require('../async-webapi');
+    AsyncWebApi = require('../async-webapi'),
+    Router = require('../router');
 
-function ReqPrimer(app) {
+function checkForErr(message) {
+  return function (res) {
+    if (!process.env.DEBUG) {
+      expect(res.body).to.deep.equal({
+        error: "500 - Internal Server Error",
+      });
+    } else {
+      if (res.body.message !== message) {
+        return "Test exception appears to be a genuine exception! Got: " + res.body.message;
+      }
+
+      if (res.body.stack.length < 1) {
+        return "Expected a stack trace of length 1 or more.";
+      }
+    }
+  }
+}
+
+function ReqPrimer(api) {
   let self = this;
 
-  self._app = app;
+  self._api = api;
 
   // some defaults
   self._expectJson = true;
@@ -72,7 +92,6 @@ function ReqPrimer(app) {
       result.expect('');
       // result.expect(function (res) {
       //   if (res.body && res.body !== {}) {
-      //     // TODO: get rid of headers
       //     return "Empty body expected, but got: " + JSON.stringify(res.body);
       //   }
       // });
@@ -101,266 +120,473 @@ function ReqPrimer(app) {
   };
 
   self.get = function(query) {
-    return self._query(self._app.get, query);
+    return self._query(self._api.get, query);
   };
 
   self.post = function(query) {
-    return self._query(self._app.post, query);
+    return self._query(self._api.post, query);
   };
 }
 
-describe("For an app", function () {
-  let appProvider;
-  beforeEach(function () {
-    appProvider = {
-      getListOfCommands: function () { return []; },
-      executeCommand: function (req, command, message) {},
-      getFirstEventId: function (req) {},
-      getEvent: function (req, eventId) {},
-    };
-  });
+[1, 0].forEach(function (debug) {
+  process.env.DEBUG = debug;
 
-  describe('The API', function () {
-    let app;
-
-    beforeEach(function () {
-      app = new ReqPrimer(request(new AsyncWebApi(appProvider)
-        .build().listen()
-      ));
-    });
-
-    it('should allow CORS', function (done) {
-      app
-        .get('/')
-        .expect('Access-Control-Allow-Origin', '*')
-        .end(done);
-    });
-
-    it('should respond with a more extensive listing at / with an API key', function (done) {
-      app
-        .get('/')
-        .expect([
-          '/commands',
-          '/events',
-        ])
-        .end(done);
-    });
-
-    describe('should be secure, requiring X-Forwarded-Proto of https, returning 403 for', function () {
-      let interestingEndpoints = ['/', '/services', '/commands', '/events'];
-      for (let i = 0; i < interestingEndpoints.length; i++) {
-        it.skip(interestingEndpoints[i], function (done) {
-          app
-            .insecure()
-            .expectStatus(403)
-            .get(interestingEndpoints[i])
-            .end(done);
-        });
-      }
-    });
-
-    it('should error at /err for test purposes', function (done) {
-      app
-        .expectStatus(500)
-        .get('/err')
-        .expect(function (res) {
-          if (!process.env.DEBUG) {
-            expect(res.body).to.deep.equal({
-              error: "500 - Internal Server Error",
-            });
-          } else {
-            if (res.body.message !== 'test') {
-              return "Test exception appears to be a genuine exception! Got: " + res.body.message;
-            }
-
-            if (res.body.stack.length < 1) {
-              return "Expected a stack trace of length 1 or more.";
-            }
-          }
-        })
-        .end(done);
-    });
-  });
-
-  describe('The event stream', function () {
-    let app;
-
-    beforeEach(function () {
-      app = new ReqPrimer(request(new AsyncWebApi(appProvider)
-        .build().listen()
-      ));
-    });
-
-    it('should 204 when there are no events but /events is queried', function (done) {
-      app
-        .notJson()
-        .expectStatus(204)
-        .get('/events')
-        .end(done);
-    });
-
-    describe('when there are events', function () {
-      it('should forward to the earliest event from /events', function (done) {
-        let firstEventId = "foo";
-        appProvider.getFirstEventId = function (req) {
-          return firstEventId;
+  describe("With DEBUG=" + process.env.DEBUG, function () {
+    describe("For an api", function () {
+      let app;
+      beforeEach(function () {
+        app = {
+          initRequestState: function (state) {},
+          getListOfCommands: function () { return []; },
+          executeCommand: function (command, message, state) {},
+          getFirstEventId: function (req) {},
+          getEvent: function (req, eventId) {},
+          getRoutingStrategies: function () { return []; },
         };
-
-        app
-          .expectStatus(200)
-          .get('/events')
-          .expect({
-            next: '/events/' + firstEventId,
-          })
-          .end(done);
       });
 
-      describe('tail', function () {
-        it('should have events pointing to the next event', function (done) {
-          let event = {
-            type: 'test',
-            message: "event message",
-            next: 'bar',
+      describe('the framework', function () {
+        let api;
+
+        beforeEach(function () {
+          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+            .build()).listen()
+          ));
+        });
+
+        it('should respond with a more extensive listing at / with an API key', function (done) {
+          api
+            .get('/')
+            .send({foo: "bar"})
+            .expect([
+              '/commands',
+              '/events',
+            ])
+            .end(done);
+        });
+
+        describe('should be secure, requiring X-Forwarded-Proto of https, returning 403 for', function () {
+          let interestingEndpoints = ['/', '/services', '/commands', '/events'];
+          for (let i = 0; i < interestingEndpoints.length; i++) {
+            it.skip(interestingEndpoints[i], function (done) {
+              api
+                .insecure()
+                .expectStatus(403)
+                .get(interestingEndpoints[i])
+                .end(done);
+            });
+          }
+        });
+      });
+
+      describe('the event stream', function () {
+        let api;
+
+        beforeEach(function () {
+          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+            .build()).listen()
+          ));
+        });
+
+        it('should 204 when there are no events but /events is queried', function (done) {
+          app.getFirstEventId = function () { return null; };
+
+          api
+            .notJson()
+            .expectStatus(204)
+            .get('/events')
+            .end(done);
+        });
+
+        describe('when there are events', function () {
+          it('should forward to the earliest event from /events', function (done) {
+            let firstEventId = "foo";
+            app.getFirstEventId = function (req) {
+              return firstEventId;
+            };
+
+            api
+              .expectStatus(200)
+              .get('/events')
+              .expect({
+                next: '/events/' + firstEventId,
+              })
+              .end(done);
+          });
+
+          describe('tail', function () {
+            it('should have events pointing to the next event', function (done) {
+              let event = {
+                type: 'test',
+                message: "event message",
+                next: 'bar',
+              };
+
+              app.getEvent = function (req, eventId) {
+                return event;
+              };
+
+              api
+                .expectCached()
+                .get('/events/foo')
+                .expect({
+                  type: event.type,
+                  message: event.message,
+                  next: '/events/' + event.next,
+                })
+                .end(done);
+            });
+
+            it('should be infinitely cached', function (done) {
+              let event = {
+                type: 'test',
+                message: "event message",
+                next: 'bar',
+              };
+
+              app.getEvent = function (req, eventId) {
+                return event;
+              };
+
+              api
+                .expectCached()
+                .get('/events/foo')
+                .end(done);
+            });
+          });
+
+          describe('head', function () {
+            it('should not be cached', function (done) {
+              let event = {
+                type: 'test',
+                message: "event message",
+              };
+
+              app.getEvent = function (req, eventId) {
+                return event;
+              };
+
+              api
+                .get('/events/foo')
+                .end(done);
+            });
+
+            // ETag: hashed-lastmodified+id??
+            // Last-Modified
+          });
+
+          describe('general behaviour', function () {
+            it('should 404 whe given a non-existent event ID', function (done) {
+              api
+                .expectStatus(404)
+                .get('/events/blah')
+                .end(done);
+            });
+          });
+        });
+      });
+
+      describe('the commands', function () {
+        let uid = 'abc123', api, users, pubsub, eventStore, userIndex;
+
+        beforeEach(function () {
+          app.getListOfCommands = function () {
+            return ['foo', 'bar', 'baz'];
           };
 
-          appProvider.getEvent = function (req, eventId) {
-            return event;
+          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+            .build()).listen()
+          ));
+        });
+
+        it.skip('idempotency in commands');
+
+        describe('should describe command', function () {
+          let assertCommandIsDescribed = function (cmd, done) {
+            api
+              .get('/commands')
+              .expect(function (res) {
+                if (res.body.indexOf(cmd) === -1) {
+                  return cmd + " is not set";
+                }
+              })
+              .end(done);
           };
 
-          app
-            .expectCached()
-            .get('/events/foo')
-            .expect({
-              type: event.type,
-              message: event.message,
-              next: '/events/' + event.next,
+          let commands = ["foo", "bar", "baz"];
+
+          for (let i = 0; i < commands.length; i++) {
+            let cmd = commands[i];
+            (function (cmd) {
+              it(cmd, function (done) {
+                assertCommandIsDescribed(cmd, done);
+              });
+            })(cmd);
+          }
+        });
+
+        describe('http method usage', function () {
+          it('should not allow GET for commands', function (done) {
+            api
+              .expectStatus(405)
+              .get('/commands/foo')
+              .expect('Allow', 'POST (application/json)')
+              .end(done);
+          });
+
+          it('should not allow non-JSON POSTs for commands', function (done) {
+            api
+              .expectStatus(406)
+              .post('/commands/foo')
+              .expect('Allow', 'POST (application/json)')
+              .end(done);
+          });
+
+          it('should not receive content from POST for commands', function (done) {
+            api
+              .expectStatus(204)
+              .notJson()
+              .noContent()
+              .post('/commands/foo')
+              .send({id: 'blah', name: 'foo'})
+              .set('Content-Type', 'application/json; charset=utf-8')
+              .end(done);
+          });
+
+          it('should 404 for unknown commands', function (done) {
+            api
+              .expectStatus(404)
+              .post('/commands/nonExistentCommand')
+              .send({foo: 'bar'})
+              .set('Content-Type', 'application/json; charset=utf-8')
+              .end(done);
+          });
+        });
+
+        it('should allow CORS', function (done) {
+          api
+            .get('/')
+            .expect('Access-Control-Allow-Origin', '*')
+            .end(done);
+        });
+
+        it('should execute commands', function (done) {
+          var data = {
+            foo: "bar",
+            baz: "qux"
+          };
+
+          var executeCommandError;
+
+          app.getListOfCommands = function () { return ["foo"]; }
+          app.executeCommand = function (cmd, message) {
+            if (cmd !== "foo") {
+              executeCommandError = "cmd should be 'foo', but is '" + cmd + "'"
+              return;
+            }
+
+            if (!message) {
+              executeCommandError = "no message given: " + message;
+              return;
+            }
+
+            if (message.foo !== data.foo || message.baz !== data.baz) {
+              executeCommandError = "cmd.data should be {foo: 'bar', baz: 'qux'} but is: " + JSON.stringify(message);
+              return;
+            }
+          };
+
+          api
+            .expectStatus(204)
+            .notJson()
+            .noContent()
+            .post('/commands/foo')
+            .send(data)
+            .set('Content-Type', 'application/json; charset=utf-8')
+            .expect(function (res) {
+              return executeCommandError;
             })
             .end(done);
         });
 
-        it('should be infinitely cached', function (done) {
-          let event = {
-            type: 'test',
-            message: "event message",
-            next: 'bar',
+        it('should error on bad JSON command messages', function (done) {
+          app.getListOfCommands = function () { return ["foo"]; }
+
+          api
+            .expectStatus(406)
+            .post('/commands/foo')
+            .send('{"foo": blah"')
+            .set('Content-Type', 'application/json; charset=utf-8')
+            .end(done);
+        });
+
+        it('should error on misbehaving app', function (done) {
+          app.getListOfCommands = function () { return ["foo"]; }
+          app.executeCommand = function () {
+            throw new Error("misbehaving");
           };
 
-          appProvider.getEvent = function (req, eventId) {
-            return event;
-          };
-
-          app
-            .expectCached()
-            .get('/events/foo')
+          api
+            .expectStatus(500)
+            .post('/commands/foo')
+            .send('{}')
+            .set('Content-Type', 'application/json; charset=utf-8')
+            .expect(checkForErr("misbehaving"))
             .end(done);
         });
       });
 
-      describe('head', function () {
-        it('should not be cached', function (done) {
-          let event = {
-            type: 'test',
-            message: "event message",
+      describe('with custom strategies', function () {
+        var api;
+
+        beforeEach(function () {
+          app.getRoutingStrategies = function () {
+            return [
+              new Router.Strategy(
+                  "sync",
+                  function (request, state) {
+                    return request.url === "/sync";
+                  },
+                  function (request, response, state) {
+                    response
+                      .setStatus(202)
+                      .setBody({
+                        my: "custom data"
+                      })
+                  }
+              ),
+              new Router.Strategy(
+                  "broken",
+                  function (request, state) {
+                    return request.url === "/broken";
+                  },
+                  function (request, response, state) {
+                    throw new Error("broken at runtime");
+                  }
+              ),
+              new Router.Strategy(
+                  "reflect",
+                  function (request, state) {
+                    return request.url === "/reflect";
+                  },
+                  function (request, response, state) {
+                    return this.getDataPromise()
+                        .then(function (data) {
+                          response
+                              .setBody(data);
+                          ;
+                        });
+                  }
+              ),
+              new Router.Strategy(
+                  "state",
+                  function (request, state) {
+                    return request.url === "/state";
+                  },
+                  function (request, response, state) {
+                    response
+                        .setBody(state)
+                    ;
+                  }
+              ),
+            ];
           };
 
-          appProvider.getEvent = function (req, eventId) {
-            return event;
-          };
+          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+            .build()).listen()
+          ));
+        })
 
-          app
-            .get('/events/foo')
+        it('should allow syncronous behaviour with a custom strategy', function (done) {
+          api
+            .expectStatus(202)
+            .get('/sync')
+            .expect({
+              my: "custom data"
+            })
             .end(done);
         });
 
-        // ETag: hashed-lastmodified+id??
-        // Last-Modified
-      });
-
-      describe('general behaviour', function () {
-        it('should 404 whe given a non-existent event ID', function (done) {
-          app
-            .expectStatus(404)
-            .get('/events/blah')
+        it('should reflect posted data back', function (done) {
+          api
+            .expectStatus(200)
+            .post('/reflect')
+            .send({
+              reflect: "this"
+            })
+            .expect({
+              reflect: "this"
+            })
             .end(done);
         });
-      });
-    });
-  });
 
-  describe('The commands', function () {
-    let uid = 'abc123', app, users, pubsub, eventStore, userIndex;
+        it('should error on misbehaving strategy', function (done) {
+          api
+            .expectStatus(500)
+            .get('/broken')
+            .expect(checkForErr("broken at runtime"))
+            .end(done);
+        });
 
-    beforeEach(function () {
-      appProvider.getListOfCommands = function () {
-        return ['foo', 'bar', 'baz'];
-      };
+        it('should be able to manipulate the request state and read it back', function (done) {
+          app.initRequestState = function (request) {
+            return { reqUrl: request.url };
+          };
 
-      app = new ReqPrimer(request(new AsyncWebApi(appProvider)
-        .build().listen()
-      ));
-    });
+          api
+            .expectStatus(200)
+            .get('/state')
+            .expect({
+              reqUrl: "/state"
+            })
+            .end(done);
+        });
 
-    it.skip('idempotency in commands');
+        it('should not allow state to be mutated after init', function (done) {
+          app.initRequestState = function (request) {
+            return { foo: "bar" };
+          }
 
-    describe('should describe command', function () {
-      let assertCommandIsDescribed = function (cmd, done) {
-        app
-          .get('/commands')
-          .expect(function (res) {
-            if (res.body.indexOf('/commands/' + cmd) === -1) {
-              return cmd + " is not set";
+          app.getFirstEventId = function (state) {
+            state.bar = "foo";
+          };
+
+          api
+            .expectStatus(500)
+            .get("/events")
+            .expect(checkForErr("Can't add property bar, object is not extensible"))
+            .end(done);
+        });
+
+        it('should be usable for a multi-user event stream', function (done) {
+          var users = {
+            foo: {
+              events: ['a', 'b', 'c'],
+            },
+            bar: {},
+          };
+
+          app.initRequestState = function (request) {
+            return {
+              user: users[request.headers["uid"]]
+            };
+          }
+
+          app.getFirstEventId = function (state) {
+            if (state.user.events) {
+              return 0;
             }
-          })
-          .end(done);
-      };
+          };
 
-      let commands = ["foo", "bar", "baz"];
-
-      for (let i = 0; i < commands.length; i++) {
-        let cmd = commands[i];
-        (function (cmd) {
-          it(cmd, function (done) {
-            assertCommandIsDescribed(cmd, done);
-          });
-        })(cmd);
-      }
-    });
-
-    describe('http method usage', function () {
-      it('should not allow GET for commands', function (done) {
-        app
-          .expectStatus(405)
-          .get('/commands/foo')
-          .expect('Allow', 'POST (application/json)')
-          .end(done);
-      });
-
-      it('should not allow non-JSON POSTs for commands', function (done) {
-        app
-          .expectStatus(406)
-          .post('/commands/foo')
-          .expect('Allow', 'POST (application/json)')
-          .end(done);
-      });
-
-      it('should not receive content from POST for commands', function (done) {
-        app
-          .expectStatus(204)
-          .notJson()
-          .noContent()
-          .post('/commands/foo')
-          .send({id: 'blah', name: 'foo'})
-          .set('Content-Type', 'application/json')
-          .end(done);
-      });
-
-      it('should 404 for unknown commands', function (done) {
-        app
-          .expectStatus(404)
-          .post('/commands/nonExistentCommand')
-          .send({foo: 'bar'})
-          .set('Content-Type', 'application/json')
-          .end(done);
+          api
+            .expectStatus(200)
+            .get("/events")
+            .set("uid", "foo")
+            .expect({
+              next: "/events/0"
+            })
+            .end(done);
+        });
       });
     });
   });
