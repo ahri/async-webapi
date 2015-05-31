@@ -87,14 +87,14 @@ CommandClient.prototype._exhaustQueue = function (delay) {
       self._platform.console.error(body);
       throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
     }
-  };
+  }
 
   this._http.post(firstCommand.cmd, firstCommand.data, callback);
 };
 
 CommandClient.prototype.disable = function () {
   this._disabled = true;
-}
+};
 
 CommandClient.prototype.callLocalQueueNetwork = function (cmd, data) {
   var cmdFunc = this._localApp[cmd];

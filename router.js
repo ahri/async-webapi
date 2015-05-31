@@ -9,11 +9,11 @@ function Strategy (name, filter, logic) {
   }
 
   if (!filter || !filter.call) {
-    throw new Error("Supply a filter function")
+    throw new Error("Supply a filter function");
   }
 
   if (!logic || !logic.call) {
-    throw new Error("Supply a logic function")
+    throw new Error("Supply a logic function");
   }
 
   this.name = name;
@@ -59,7 +59,7 @@ Router.getDataPromise = function (request) {
 Router.prototype.addStrategy = function (strategy) {
   for (var i = 0; i < this._strategies.length; i++) {
     if (this._strategies[i].name === strategy.name) {
-      throw new Error("Duplicate strategies exist for name: " + strategy.name)
+      throw new Error("Duplicate strategies exist for name: " + strategy.name);
     }
   }
 
@@ -67,9 +67,11 @@ Router.prototype.addStrategy = function (strategy) {
 };
 
 Router.prototype.execute = function (request, response, state) {
+  var i;
+
   if (process.env.DEBUG) {
     var space = " ";
-    for (var i = 0; i < 6 - request.method.length; i++) {
+    for (i = 0; i < 6 - request.method.length; i++) {
       space += " ";
     }
     console.log(chalk.green(" -> [" + request.method + "]") + space + request.url);
@@ -77,7 +79,7 @@ Router.prototype.execute = function (request, response, state) {
 
   var accepting = [];
 
-  for (var i = 0; i < this._strategies.length; i++) {
+  for (i = 0; i < this._strategies.length; i++) {
     var strategy = this._strategies[i];
 
     if (strategy.filter(request, state)) {
@@ -96,7 +98,7 @@ Router.prototype.execute = function (request, response, state) {
   }
 
   if (process.env.DEBUG) {
-    console.log(chalk.blue(" ~?") + " routing to: " + accepting[0].name)
+    console.log(chalk.blue(" ~?") + " routing to: " + accepting[0].name);
   }
 
   var context = {

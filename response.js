@@ -36,7 +36,7 @@ Response.prototype.write = function (response) {
   }
 
   if (this._body) {
-    this.setHeader("Content-Type", "application/json; charset=utf-8")
+    this.setHeader("Content-Type", "application/json; charset=utf-8");
   }
 
   response.writeHead(this._status, this._headers);

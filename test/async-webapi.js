@@ -1,7 +1,6 @@
 'use strict';
-/* jslint esnext: true */
 
-let http = require('http'),
+var http = require('http'),
     request = require('supertest'),
     expect = require('chai').expect,
     AsyncWebApi = require('../async-webapi'),
@@ -22,11 +21,11 @@ function checkForErr(message) {
         return "Expected a stack trace of length 1 or more.";
       }
     }
-  }
+  };
 }
 
 function ReqPrimer(api) {
-  let self = this;
+  var self = this;
 
   self._api = api;
 
@@ -63,7 +62,7 @@ function ReqPrimer(api) {
   };
 
   self._query = function (func, query) {
-    let result = func(query);
+    var result = func(query);
 
     // from client
     result.set('Accept', 'application/json');
@@ -133,7 +132,7 @@ function ReqPrimer(api) {
 
   describe("With DEBUG=" + process.env.DEBUG, function () {
     describe("For an api", function () {
-      let app;
+      var app;
       beforeEach(function () {
         app = {
           initRequestState: function (state) {},
@@ -146,7 +145,7 @@ function ReqPrimer(api) {
       });
 
       describe('the framework', function () {
-        let api;
+        var api;
 
         beforeEach(function () {
           api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
@@ -166,8 +165,8 @@ function ReqPrimer(api) {
         });
 
         describe('should be secure, requiring X-Forwarded-Proto of https, returning 403 for', function () {
-          let interestingEndpoints = ['/', '/services', '/commands', '/events'];
-          for (let i = 0; i < interestingEndpoints.length; i++) {
+          var interestingEndpoints = ['/', '/services', '/commands', '/events'];
+          for (var i = 0; i < interestingEndpoints.length; i++) {
             it.skip(interestingEndpoints[i], function (done) {
               api
                 .insecure()
@@ -180,7 +179,7 @@ function ReqPrimer(api) {
       });
 
       describe('the event stream', function () {
-        let api;
+        var api;
 
         beforeEach(function () {
           api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
@@ -200,7 +199,7 @@ function ReqPrimer(api) {
 
         describe('when there are events', function () {
           it('should forward to the earliest event from /events', function (done) {
-            let firstEventId = "foo";
+            var firstEventId = "foo";
             app.getFirstEventId = function (req) {
               return firstEventId;
             };
@@ -216,7 +215,7 @@ function ReqPrimer(api) {
 
           describe('tail', function () {
             it('should have events pointing to the next event', function (done) {
-              let event = {
+              var event = {
                 type: 'test',
                 message: "event message",
                 next: 'bar',
@@ -238,7 +237,7 @@ function ReqPrimer(api) {
             });
 
             it('should be infinitely cached', function (done) {
-              let event = {
+              var event = {
                 type: 'test',
                 message: "event message",
                 next: 'bar',
@@ -257,7 +256,7 @@ function ReqPrimer(api) {
 
           describe('head', function () {
             it('should not be cached', function (done) {
-              let event = {
+              var event = {
                 type: 'test',
                 message: "event message",
               };
@@ -287,7 +286,7 @@ function ReqPrimer(api) {
       });
 
       describe('the commands', function () {
-        let uid = 'abc123', api, users, pubsub, eventStore, userIndex;
+        var uid = 'abc123', api, users, pubsub, eventStore, userIndex;
 
         beforeEach(function () {
           app.getListOfCommands = function () {
@@ -302,7 +301,7 @@ function ReqPrimer(api) {
         it.skip('idempotency in commands');
 
         describe('should describe command', function () {
-          let assertCommandIsDescribed = function (cmd, done) {
+          var assertCommandIsDescribed = function (cmd, done) {
             api
               .get('/commands')
               .expect(function (res) {
@@ -313,10 +312,10 @@ function ReqPrimer(api) {
               .end(done);
           };
 
-          let commands = ["foo", "bar", "baz"];
+          var commands = ["foo", "bar", "baz"];
 
-          for (let i = 0; i < commands.length; i++) {
-            let cmd = commands[i];
+          for (var i = 0; i < commands.length; i++) {
+            var cmd = commands[i];
             (function (cmd) {
               it(cmd, function (done) {
                 assertCommandIsDescribed(cmd, done);
@@ -378,10 +377,10 @@ function ReqPrimer(api) {
 
           var executeCommandError;
 
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function () { return ["foo"]; };
           app.executeCommand = function (cmd, message) {
             if (cmd !== "foo") {
-              executeCommandError = "cmd should be 'foo', but is '" + cmd + "'"
+              executeCommandError = "cmd should be 'foo', but is '" + cmd + "'";
               return;
             }
 
@@ -410,7 +409,7 @@ function ReqPrimer(api) {
         });
 
         it('should error on bad JSON command messages', function (done) {
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function () { return ["foo"]; };
 
           api
             .expectStatus(406)
@@ -421,7 +420,7 @@ function ReqPrimer(api) {
         });
 
         it('should error on misbehaving app', function (done) {
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function () { return ["foo"]; };
           app.executeCommand = function () {
             throw new Error("misbehaving");
           };
@@ -452,7 +451,7 @@ function ReqPrimer(api) {
                       .setStatus(202)
                       .setBody({
                         my: "custom data"
-                      })
+                      });
                   }
               ),
               new Router.Strategy(
@@ -473,7 +472,7 @@ function ReqPrimer(api) {
                     return this.getDataPromise()
                         .then(function (data) {
                           response
-                              .setBody(data);
+                              .setBody(data)
                           ;
                         });
                   }
@@ -495,7 +494,7 @@ function ReqPrimer(api) {
           api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
             .build()).listen()
           ));
-        })
+        });
 
         it('should allow syncronous behaviour with a custom strategy', function (done) {
           api
@@ -545,7 +544,7 @@ function ReqPrimer(api) {
         it('should not allow state to be mutated after init', function (done) {
           app.initRequestState = function (request) {
             return { foo: "bar" };
-          }
+          };
 
           app.getFirstEventId = function (state) {
             state.bar = "foo";
@@ -568,9 +567,9 @@ function ReqPrimer(api) {
 
           app.initRequestState = function (request) {
             return {
-              user: users[request.headers["uid"]]
+              user: users[request.headers.uid]
             };
-          }
+          };
 
           app.getFirstEventId = function (state) {
             if (state.user.events) {
