@@ -1,13 +1,13 @@
 'use strict';
 
-let expect = require('chai').expect,
+var expect = require('chai').expect,
     CommandClient = require('../command-client');
 
 describe('The CommandClient class', function () {
   var commandClient, localApp, storage, readModel, writeModel, http, backoff, platform;
 
   beforeEach(function () {
-    let cmds = {};
+    var cmds = {};
 
     localApp = {
       foo: function () {},
@@ -17,7 +17,7 @@ describe('The CommandClient class', function () {
       getFirst: function () {
         return cmds.first;
       }
-    },
+    };
     writeModel = {
       add: function (cmd, data) {
         if (cmds.last === undefined) {
@@ -63,7 +63,7 @@ describe('The CommandClient class', function () {
   });
 
   it('should store the command', function (done) {
-    let writeModelAdd = writeModel.add;
+    var writeModelAdd = writeModel.add;
 
     writeModel.add = function (cmd, data) {
       writeModelAdd.call(writeModel, cmd, data);
@@ -100,7 +100,7 @@ describe('The CommandClient class', function () {
   it('should post two commands in order', function (done) {
     commandClient.callLocalQueueNetwork('foo', 'bar');
 
-    let httpPost = http.post,
+    var httpPost = http.post,
         calledFirst = false;
 
     http.post = function (uri, data, callback) {
@@ -121,7 +121,7 @@ describe('The CommandClient class', function () {
   });
 
   it('should remove the command', function (done) {
-    let writeModelRemoveFirst = writeModel.removeFirst;
+    var writeModelRemoveFirst = writeModel.removeFirst;
     writeModel.removeFirst = function () {
       writeModelRemoveFirst.call(writeModel);
       done();

@@ -40,7 +40,7 @@ function ApiBuilder(app) {
 
   function doCache(response) {
     response
-        .setHeader("Cache-Control", CACHE_SETTING);
+        .setHeader("Cache-Control", CACHE_SETTING)
     ;
   }
 
@@ -257,7 +257,7 @@ ApiBuilder.prototype.build = function () {
       res.writeHead(500, {
         "Cache-Control": "public, max-age=0, no-cache, no-store",
         "Content-Type": "application/json; charset=utf-8",
-      })
+      });
 
       res.end(JSON.stringify(body));
     }
