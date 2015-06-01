@@ -241,11 +241,12 @@ ApiBuilder.prototype.build = function () {
           .setHeader("Access-Control-Allow-Origin", "*")
       ;
 
-      var context = {
+      var strategyContext = {
         getDataPromise: function () { return getDataPromise(req); },
       };
+      Object.freeze(strategyContext);
 
-      Q.fcall(router.execute.bind(router), context, req, response, state)
+      Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
           .catch(function (err) {
             // TODO: managing these states via exceptions is not great, at least use custom exception types?
             if (err.message.indexOf("No strategies match request") === 0) {

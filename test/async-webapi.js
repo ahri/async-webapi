@@ -469,6 +469,15 @@ function ReqPrimer(api) {
                   }
               ),
               new Router.Strategy(
+                  "messing with this",
+                  function (request, state) {
+                    return request.url === "/messing_with_this";
+                  },
+                  function (request, response, state) {
+                    this.foo = "bar";
+                  }
+              ),
+              new Router.Strategy(
                   "reflect",
                   function (request, state) {
                     return request.url === "/reflect";
@@ -528,6 +537,14 @@ function ReqPrimer(api) {
             .expectStatus(500)
             .get('/broken')
             .expect(checkForErr("broken at runtime"))
+            .end(done);
+        });
+
+        it('should error on strategy that tries to modify its state via "this"', function (done) {
+          api
+            .expectStatus(500)
+            .get('/messing_with_this')
+            .expect(checkForErr("Can't add property foo, object is not extensible"))
             .end(done);
         });
 
