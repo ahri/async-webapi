@@ -127,6 +127,12 @@ function ReqPrimer(api) {
   };
 }
 
+function buildApi(app) {
+  return new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+    .build()).listen()
+  ));
+}
+
 [1, 0].forEach(function (debug) {
   process.env.DEBUG = debug;
 
@@ -147,9 +153,7 @@ function ReqPrimer(api) {
         var api;
 
         beforeEach(function () {
-          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
-            .build()).listen()
-          ));
+          api = buildApi(app);
         });
 
         it('should give a 404 for non-existent stuff', function (done) {
@@ -188,9 +192,7 @@ function ReqPrimer(api) {
         var api;
 
         beforeEach(function () {
-          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
-            .build()).listen()
-          ));
+          api = buildApi(app);
         });
 
         it('should 204 when there are no events but /events is queried', function (done) {
@@ -298,9 +300,7 @@ function ReqPrimer(api) {
             return ['foo', 'bar', 'baz'];
           };
 
-          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
-            .build()).listen()
-          ));
+          api = buildApi(app);
         });
 
         it.skip('idempotency in commands');
@@ -505,9 +505,7 @@ function ReqPrimer(api) {
             ];
           };
 
-          api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
-            .build()).listen()
-          ));
+          api = buildApi(app);
         });
 
         it('should allow syncronous behaviour with a custom strategy', function (done) {
@@ -603,6 +601,16 @@ function ReqPrimer(api) {
             .expect({
               next: "/events/0"
             })
+            .end(done);
+        });
+      });
+
+      describe('with custom config', function () {
+        it('should allow the application to specify custom CORS headers', function (done) {
+          app.getCorsAllowedHeaders = function () { return ["X-Custom"]; }
+          buildApi(app)
+            .get("/")
+            .expect("Access-Control-Allow-Headers", "X-Custom")
             .end(done);
         });
       });
