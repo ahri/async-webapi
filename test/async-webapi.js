@@ -1,6 +1,6 @@
 'use strict';
 
-let http = require('http'),
+var http = require('http'),
     request = require('supertest'),
     expect = require('chai').expect,
     AsyncWebApi = require('../async-webapi'),

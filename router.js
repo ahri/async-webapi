@@ -1,7 +1,6 @@
 'use strict';
 
-var Q = require('q'),
-    chalk = require('chalk');
+var chalk = require('chalk');
 
 function Strategy (name, filter, logic) {
   if (!name) {
@@ -33,29 +32,6 @@ function Router() {
 
 Router.Strategy = Strategy;
 
-Router.getDataPromise = function (request) {
-  var deferred = Q.defer();
-  if (!request || !request.on) {
-    deferred.reject(new Error("Pass a request"));
-    return deferred.promise;
-  }
-
-  var body = "";
-  request.on("data", function (chunk) {
-    body += chunk.toString();
-  });
-
-  request.on("end", function () {
-    try {
-      deferred.resolve(JSON.parse(body));
-    } catch (err) {
-      deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message : ".")));
-    }
-  });
-
-  return deferred.promise;
-};
-
 Router.prototype.addStrategy = function (strategy) {
   for (var i = 0; i < this._strategies.length; i++) {
     if (this._strategies[i].name === strategy.name) {
@@ -66,7 +42,7 @@ Router.prototype.addStrategy = function (strategy) {
   this._strategies.push(strategy);
 };
 
-Router.prototype.execute = function (request, response, state) {
+Router.prototype.execute = function (context, request, response, state) {
   var i;
 
   if (process.env.DEBUG) {
@@ -101,11 +77,7 @@ Router.prototype.execute = function (request, response, state) {
     console.log(chalk.blue(" ~?") + " routing to: " + accepting[0].name);
   }
 
-  var context = {
-    getDataPromise: function () { return Router.getDataPromise(request); },
-  };
-
-  return Q.fcall(accepting[0].logic.bind(context), request, response, state);
+  return accepting[0].logic.call(context, request, response, state);
 };
 
 module.exports = Router;

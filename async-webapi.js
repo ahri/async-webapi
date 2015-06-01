@@ -9,6 +9,29 @@ if (process.env.DEBUG) {
   Q.longStackSupport = true;
 }
 
+function getDataPromise (request) {
+  var deferred = Q.defer();
+  if (!request || !request.on) {
+    deferred.reject(new Error("Pass a request"));
+    return deferred.promise;
+  }
+
+  var body = "";
+  request.on("data", function (chunk) {
+    body += chunk.toString();
+  });
+
+  request.on("end", function () {
+    try {
+      deferred.resolve(JSON.parse(body));
+    } catch (err) {
+      deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message : ".")));
+    }
+  });
+
+  return deferred.promise;
+}
+
 function doError(response, code, name, detail, err) {
   var body = {
     error: code + " - " + name,
@@ -116,7 +139,7 @@ function ApiBuilder(app) {
           ev = app.getEvent(state, id);
 
       if (!ev) {
-        doError(response, 404, "Missing", "The item you're looking for doesn't exist");
+        doError(response, 404, "Not Found", "The event you're looking for doesn't exist");
         return;
       }
 
@@ -183,7 +206,7 @@ function ApiBuilder(app) {
       var command = request.url.substr(10);
 
       if (app.getListOfCommands(state).indexOf(command) === -1) {
-        doError(response, 404, "Missing", "The item you're looking for doesn't exist");
+        doError(response, 404, "Not Found", "The command you're looking for doesn't exist");
         return;
       }
 
@@ -218,16 +241,18 @@ ApiBuilder.prototype.build = function () {
           .setHeader("Access-Control-Allow-Origin", "*")
       ;
 
-      router
-          .execute(req, response, state)
+      var context = {
+        getDataPromise: function () { return getDataPromise(req); },
+      };
+
+      Q.fcall(router.execute.bind(router), context, req, response, state)
           .catch(function (err) {
             // TODO: managing these states via exceptions is not great, at least use custom exception types?
             if (err.message.indexOf("No strategies match request") === 0) {
               // TODO: this.doError() would be nice
               doError(response, 404, "Not Found");
-            }
-            if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
-              doError(response, 406, "Internal Server Error", "JSON Parsing Error", err);
+            } else if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
+              doError(response, 406, "Not Acceptable", "JSON Parsing Error", err);
             } else {
               doError(response, 500, "Internal Server Error", "Routing error", err);
             }
