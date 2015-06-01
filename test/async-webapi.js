@@ -1,6 +1,8 @@
 'use strict';
 /* jslint esnext: true */
 
+// TODO: app should supply hooks for allowing/disallowing access to /commands and /events
+
 let http = require('http'),
     request = require('supertest'),
     expect = require('chai').expect,
@@ -132,16 +134,15 @@ function ReqPrimer(api) {
   process.env.DEBUG = debug;
 
   describe("With DEBUG=" + process.env.DEBUG, function () {
-    describe("For an api", function () {
+    describe("for an api", function () {
       let app;
       beforeEach(function () {
         app = {
           initRequestState: function (state) {},
-          getListOfCommands: function () { return []; },
+          getListOfCommands: function (state) { return []; },
           executeCommand: function (command, message, state) {},
-          getFirstEventId: function (req) {},
-          getEvent: function (req, eventId) {},
-          getRoutingStrategies: function () { return []; },
+          getFirstEventId: function (state) {},
+          getEvent: function (state, id) {},
         };
       });
 
@@ -152,6 +153,13 @@ function ReqPrimer(api) {
           api = new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
             .build()).listen()
           ));
+        });
+
+        it('should give a 404 for non-existent stuff', function (done) {
+          api
+              .expectStatus(404)
+              .get('/nonexistentstuff')
+              .end(done);
         });
 
         it('should respond with a more extensive listing at / with an API key', function (done) {
@@ -206,7 +214,6 @@ function ReqPrimer(api) {
             };
 
             api
-              .expectStatus(200)
               .get('/events')
               .expect({
                 next: '/events/' + firstEventId,
@@ -290,7 +297,7 @@ function ReqPrimer(api) {
         let uid = 'abc123', api, users, pubsub, eventStore, userIndex;
 
         beforeEach(function () {
-          app.getListOfCommands = function () {
+          app.getListOfCommands = function (state) {
             return ['foo', 'bar', 'baz'];
           };
 
@@ -378,7 +385,7 @@ function ReqPrimer(api) {
 
           var executeCommandError;
 
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function (state) { return ["foo"]; }
           app.executeCommand = function (cmd, message) {
             if (cmd !== "foo") {
               executeCommandError = "cmd should be 'foo', but is '" + cmd + "'"
@@ -410,7 +417,7 @@ function ReqPrimer(api) {
         });
 
         it('should error on bad JSON command messages', function (done) {
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function (state) { return ["foo"]; }
 
           api
             .expectStatus(406)
@@ -421,7 +428,7 @@ function ReqPrimer(api) {
         });
 
         it('should error on misbehaving app', function (done) {
-          app.getListOfCommands = function () { return ["foo"]; }
+          app.getListOfCommands = function (state) { return ["foo"]; }
           app.executeCommand = function () {
             throw new Error("misbehaving");
           };
@@ -509,7 +516,6 @@ function ReqPrimer(api) {
 
         it('should reflect posted data back', function (done) {
           api
-            .expectStatus(200)
             .post('/reflect')
             .send({
               reflect: "this"
@@ -534,7 +540,6 @@ function ReqPrimer(api) {
           };
 
           api
-            .expectStatus(200)
             .get('/state')
             .expect({
               reqUrl: "/state"
@@ -579,7 +584,6 @@ function ReqPrimer(api) {
           };
 
           api
-            .expectStatus(200)
             .get("/events")
             .set("uid", "foo")
             .expect({

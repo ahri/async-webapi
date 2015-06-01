@@ -141,7 +141,7 @@ function ApiBuilder(app) {
     },
     function (request, response, state) {
       response
-          .setBody(app.getListOfCommands())
+          .setBody(app.getListOfCommands(state))
       ;
     }
   ));
@@ -182,7 +182,7 @@ function ApiBuilder(app) {
     function (request, response, state) {
       var command = request.url.substr(10);
 
-      if (app.getListOfCommands().indexOf(command) === -1) {
+      if (app.getListOfCommands(state).indexOf(command) === -1) {
         doError(response, 404, "Missing", "The item you're looking for doesn't exist");
         return;
       }
@@ -221,6 +221,11 @@ ApiBuilder.prototype.build = function () {
       router
           .execute(req, response, state)
           .catch(function (err) {
+            // TODO: managing these states via exceptions is not great, at least use custom exception types?
+            if (err.message.indexOf("No strategies match request") === 0) {
+              // TODO: this.doError() would be nice
+              doError(response, 404, "Not Found");
+            }
             if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
               doError(response, 406, "Internal Server Error", "JSON Parsing Error", err);
             } else {
