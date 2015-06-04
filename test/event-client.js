@@ -56,7 +56,7 @@ describe('The Event Client', function () {
       [null, '/events/1', 200, {}, {message: "at head"}],
     ]);
 
-    var transition = function (err, type, message) {
+    var transition = function (type, message) {
       done();
     };
 
@@ -71,7 +71,7 @@ describe('The Event Client', function () {
     ]);
 
     var calls = 0;
-    var transition = function (err, type, message) {
+    var transition = function (type, message) {
       if (message === "at head") {
         if (calls++ === 0) {
           done();
@@ -89,7 +89,7 @@ describe('The Event Client', function () {
       [null, '/events/1', 200, {}, {message: "at head"}], // NB. transition call happens when we move to here
     ]);
 
-    var transition = function (err, type, message) { done(); };
+    var transition = function (type, message) { done(); };
 
     client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
@@ -111,7 +111,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function (err, type, message) {}, http, backoff, platform);
+      client = new EventClient('/events', function (type, message) {}, http, backoff, platform);
     });
   });
 
@@ -132,7 +132,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function (err, type, message) {}, http, backoff, platform);
+      client = new EventClient('/events', function (type, message) {}, http, backoff, platform);
     });
   });
 

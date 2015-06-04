@@ -22,7 +22,7 @@ function Strategy (name, filter, logic) {
   return Object.freeze(this);
 }
 
-function debugSummary(request) {
+function debugSummary(request, state) {
   return request.url;
 }
 
@@ -70,7 +70,7 @@ Router.prototype.execute = function (context, request, response, state) {
   if (accepting.length > 1) {
     throw new Error("Only one strategy should match, but " +
         accepting.map(function (strategy) { return strategy.name; }).join(", ") +
-        " matched " + debugSummary(request));
+        " matched " + debugSummary(request, state));
   }
 
   if (process.env.DEBUG) {

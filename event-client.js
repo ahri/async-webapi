@@ -66,19 +66,9 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     throw new Error("Provide an initial uri");
   }
 
-  if (eventCallback === undefined || eventCallback.call === undefined || eventCallback.length !== 3) {
-    throw new Error("Provide an event callback with 3 params: err, eventType, eventMessage");
+  if (eventCallback === undefined || eventCallback.call === undefined || eventCallback.length !== 2) {
+    throw new Error("Provide an event callback with 2 params: eventType, eventMessage");
   }
-
-  var transitionCall = function (err, uri, status, headers, body) {
-    // Assumption: we don't get called in case of error
-
-    if (body.type === undefined || body.message === undefined) {
-      err = new Error("Expected both type and message to be set in body");
-    }
-
-    eventCallback(null, body.type, body.message);
-  };
 
   if (http === undefined) {
     throw new Error("Provide an http interface");
@@ -110,6 +100,18 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
            ", headers: " + JSON.stringify(args[4]) +
            ", body: " + JSON.stringify(args[5]) + "}";
   });
+
+  var transitionCall = function (err, uri, status, headers, body) {
+    if (status !== 200) {
+      strategy.exec(err, 0, uri, status, headers, body);
+    }
+
+    if (body.type === undefined || body.message === undefined) {
+      err = new Error("Expected both type and message to be set in body");
+    }
+
+    eventCallback(body.type, body.message);
+  };
 
   var asyncPoller = new AsyncPoller(platform, strategy, http);
   this._asyncPoller = asyncPoller;
@@ -164,7 +166,6 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       return status >= 500 && status < 600;
     },
     exec: function stratServerErr(err, delay, uri, status, headers, body) {
-      platform.console.error(body);
       delay = backoff.serverErrorIncrease(delay);
       if (backoff.serverErrorCallback) {
         platform.setTimeout(function () { backoff.serverErrorCallback(uri, err, delay); }, 0);
@@ -180,7 +181,6 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     },
     exec: function stratClientErr(err, delay, uri, status, headers, body) {
       delay = backoff.clientErrorIncrease(delay);
-      platform.console.error(err);
       if (backoff.clientErrorCallback) {
         platform.setTimeout(function () { backoff.clientErrorCallback(uri, err, delay); }, 0);
       }

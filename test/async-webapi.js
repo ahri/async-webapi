@@ -125,6 +125,10 @@ function ReqPrimer(api) {
   self.post = function(query) {
     return self._query(self._api.post, query);
   };
+
+  self.options = function(query) {
+    return self._query(self._api.options, query);
+  };
 }
 
 function buildApi(app) {
@@ -143,7 +147,7 @@ function buildApi(app) {
         app = {
           initRequestState: function (state) {},
           getListOfCommands: function (state) { return []; },
-          executeCommand: function (command, message, state) {},
+          executeCommand: function (state, command, message) {},
           getFirstEventId: function (state) {},
           getEvent: function (state, id) {},
         };
@@ -274,6 +278,10 @@ function buildApi(app) {
 
               api
                 .get('/events/foo')
+                .expect({
+                    type: "test",
+                    message: "event message",
+                })
                 .end(done);
             });
 
@@ -367,13 +375,6 @@ function buildApi(app) {
           });
         });
 
-        it('should allow CORS', function (done) {
-          api
-            .get('/')
-            .expect('Access-Control-Allow-Origin', '*')
-            .end(done);
-        });
-
         it('should execute commands', function (done) {
           var data = {
             foo: "bar",
@@ -383,7 +384,7 @@ function buildApi(app) {
           var executeCommandError;
 
           app.getListOfCommands = function (state) { return ["foo"]; };
-          app.executeCommand = function (cmd, message) {
+          app.executeCommand = function (state, cmd, message) {
             if (cmd !== "foo") {
               executeCommandError = "cmd should be 'foo', but is '" + cmd + "'";
               return;
@@ -606,14 +607,64 @@ function buildApi(app) {
       });
 
       describe('with custom config', function () {
+        it('should allow the application to specify a custom CORS origin', function (done) {
+          app.initRequestState = function () { return { origin: "Custom" }; };
+          app.getCorsOrigin = function (state) { return state.origin; };
+          buildApi(app)
+            .get("/")
+            .expect("Access-Control-Allow-Origin", "Custom")
+            .end(done);
+        });
+
         it('should allow the application to specify custom CORS headers', function (done) {
-          app.getCorsAllowedHeaders = function () { return ["X-Custom"]; }
+          app.initRequestState = function () { return { header: "Custom" }; };
+          app.getCorsAllowedHeaders = function (state) { return ["X-" + state.header]; };
           buildApi(app)
             .get("/")
             .expect("Access-Control-Allow-Headers", "X-Custom")
             .end(done);
         });
+
+        it('should allow the application to configure the listings at the root', function (done) {
+          app.initRequestState = function () { return {root: 1}; };
+          app.getRootListing = function (state) { return [state.root]; };
+          buildApi(app)
+            .get("/")
+            .expect([1])
+            .end(done);
+        });
+      });
+
+      describe('CORS', function () {
+        var api;
+
+        beforeEach(function () {
+          api = buildApi(app);
+        });
+
+        it('should default to allow all CORS origins', function (done) {
+          api
+            .get('/')
+            .expect('Access-Control-Allow-Origin', '*')
+            .end(done);
+        });
+
+        describe('global preflight response', function () {
+          ["/", "/commands", "/commands/foo", "/events", "/events/0"].forEach(function (url) {
+            it('should be appropriate at ' + url, function (done) {
+              api
+                .expectStatus(204)
+                .noContent()
+                .notJson()
+                .options(url)
+                .set("Access-Control-Request-Method", "GET")
+                .set("Access-Control-Request-Headers", "x-apikey")
+                .end(done);
+            });
+          });
+        });
       });
     });
   });
+
 });

@@ -88,22 +88,22 @@ function ApiBuilder(app) {
   this._router = new Router();
 
   this._router.addStrategy(new Router.Strategy(
-    "root",
+    "Root",
     function (request, state) {
-      return request.url === "/";
+      return request.method === "GET" && request.url === "/";
     },
     function (request, response, state) {
       response
-          .setBody(["/commands", "/events"])
+          .setBody(app.getRootListing !== undefined ? app.getRootListing(state) : ["/commands", "/events"])
       ;
     }
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "event stream - no events",
+    "Event Stream Root - No Events",
     function (request, state) {
       var first = app.getFirstEventId(state);
-      return request.url === "/events" && (first === undefined || first === null);
+      return request.method === "GET" && request.url === "/events" && (first === undefined || first === null);
     },
     function (request, response, state) {
       response
@@ -114,10 +114,10 @@ function ApiBuilder(app) {
 
   // TODO: factor-out calls to app.methods() so that they're called only once-per-request
   this._router.addStrategy(new Router.Strategy(
-    "event stream - with event",
+    "Event Stream Root - With Event",
     function (request, state) {
       var first = app.getFirstEventId(state);
-      return request.url === "/events" && (first !== undefined && first !== null);
+      return request.method === "GET" && request.url === "/events" && (first !== undefined && first !== null);
     },
     function (request, response, state) {
       response
@@ -130,9 +130,9 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "event specified",
+    "Event Specified",
     function (request, state) {
-      return request.url.substr(0, 8) === "/events/";
+      return request.method === "GET" && request.url.substr(0, 8) === "/events/";
     },
     function (request, response, state) {
       var id = request.url.substr(8),
@@ -147,20 +147,25 @@ function ApiBuilder(app) {
         doCache(response);
       }
 
+      var out = {
+        type: ev.type,
+        message: ev.message,
+      };
+
+      if (ev.next) {
+        out.next = "/events/" + ev.next;
+      }
+
       response
-          .setBody({
-            type: ev.type,
-            message: ev.message,
-            next: "/events/" + ev.next
-          })
+          .setBody(out)
       ;
     }
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "commands",
+    "Commands",
     function (request, state) {
-      return request.url === "/commands";
+      return request.method === "GET" && request.url === "/commands";
     },
     function (request, response, state) {
       response
@@ -170,9 +175,9 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "commands with non-POST HTTP method",
+    "Invalid Command with non-POST HTTP method",
     function (request, state) {
-      return request.url.substr(0, 10) === "/commands/" && request.method !== "POST";
+      return request.url.substr(0, 10) === "/commands/" && request.method !== "POST" && request.method !== "OPTIONS";
     },
     function (request, response, state) {
       response
@@ -184,9 +189,9 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "commands with non-JSON POSTs",
+    "Invalid Command with non-JSON POST",
     function (request, state) {
-      return request.url.substr(0, 10) === "/commands/" && request.method === "POST" && request.headers["content-type"] !== "application/json; charset=utf-8";
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"] !== "application/json; charset=utf-8";
     },
     function (request, response, state) {
       response
@@ -198,9 +203,9 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "commands with JSON POSTs",
+    "Valid Command",
     function (request, state) {
-      return request.url.substr(0, 10) === "/commands/" && request.method === "POST" && request.headers["content-type"] === "application/json; charset=utf-8";
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"] === "application/json; charset=utf-8";
     },
     function (request, response, state) {
       var command = request.url.substr(10);
@@ -212,11 +217,23 @@ function ApiBuilder(app) {
 
       return this.getDataPromise()
           .then(function (message) {
-            app.executeCommand(command, message);
+            app.executeCommand(state, command, message);
             response
                 .setStatus(204)
             ;
           });
+    }
+  ));
+
+  this._router.addStrategy(new Router.Strategy(
+    "CORS Preflight",
+    function (request, state) {
+      return request.method === "OPTIONS";
+    },
+    function (request, response, state) {
+      response
+          .setStatus(204)
+      ;
     }
   ));
 
@@ -226,6 +243,7 @@ function ApiBuilder(app) {
   }
 }
 
+// TODO: is a build method really needed? consider whether this object-with-hooks method is better than a builder, and pick a way instead of mixing like this
 ApiBuilder.prototype.build = function () {
   var router = this._router;
   var self = this;
@@ -238,8 +256,8 @@ ApiBuilder.prototype.build = function () {
       var response = new Response();
       response
           .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
-          .setHeader("Access-Control-Allow-Origin", "*")
-          .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders() : []).join(", "))
+          .setHeader("Access-Control-Allow-Origin", (self._app.getCorsOrigin ? self._app.getCorsOrigin(state) : "*"))
+          .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders(state) : []).join(", "))
       ;
 
       var strategyContext = {
@@ -249,6 +267,10 @@ ApiBuilder.prototype.build = function () {
 
       Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
           .catch(function (err) {
+            if (process.env.DEBUG) {
+              console.log("Promise-catch:");
+              console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+            }
             // TODO: managing these states via exceptions is not great, at least use custom exception types?
             if (err.message.indexOf("No strategies match request") === 0) {
               // TODO: this.doError() would be nice
@@ -267,6 +289,7 @@ ApiBuilder.prototype.build = function () {
 
     } catch (err) {
       if (process.env.DEBUG) {
+        console.log("Framework-catch:");
         console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
       }
 
