@@ -43,11 +43,19 @@ function doError(response, code, name, detail, err) {
     }
 
     if (err) {
-      console.log(chalk.red(" !! ") + err);
+      if (process.env.DEBUG >= 2) {
+        console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+      } else {
+        console.log(chalk.red(" !! ") + err);
+      }
 
       body.message = err.message;
       body.stack = err.stack.split("\n").slice(1);
     }
+  }
+
+  if (process.env.DEBUG >= 2 && detail) {
+    console.log(chalk.red(" << ") + detail);
   }
 
   response
@@ -191,14 +199,14 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Invalid Command with non-JSON POST",
     function (request, state) {
-      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"] !== "application/json; charset=utf-8";
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (request.headers["content-type"] === undefined || request.headers["content-type"].toLowerCase() !== "application/json; charset=utf-8");
     },
     function (request, response, state) {
       response
           .setHeader("Allow", "POST (application/json)")
       ;
 
-      doError(response, 406, "Not Acceptable", "Only 'Content-Type: application/json; charset=utf-8' is accepted");
+      doError(response, 406, "Not Acceptable", "Only 'Content-Type: application/json; charset=utf-8' is accepted, you sent " + request.headers["content-type"]);
     }
   ));
 
@@ -257,7 +265,7 @@ ApiBuilder.prototype.build = function () {
       response
           .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
           .setHeader("Access-Control-Allow-Origin", (self._app.getCorsOrigin ? self._app.getCorsOrigin(state) : "*"))
-          .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders(state) : []).join(", "))
+          .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders(state) : ["Content-Type"]).join(", "))
       ;
 
       var strategyContext = {

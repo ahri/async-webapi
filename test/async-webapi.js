@@ -649,6 +649,13 @@ function buildApi(app) {
             .end(done);
         });
 
+        it('should default to allow Content-Type header via CORS', function (done) {
+          api
+            .get('/')
+            .expect('Access-Control-Allow-Headers', 'Content-Type')
+            .end(done);
+        });
+
         describe('global preflight response', function () {
           ["/", "/commands", "/commands/foo", "/events", "/events/0"].forEach(function (url) {
             it('should be appropriate at ' + url, function (done) {

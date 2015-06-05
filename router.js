@@ -74,7 +74,7 @@ Router.prototype.execute = function (context, request, response, state) {
   }
 
   if (process.env.DEBUG) {
-    console.log(chalk.blue(" ~?") + " routing to: " + accepting[0].name);
+    console.log(chalk.blue(" ~?") + accepting[0].name);
   }
 
   return accepting[0].logic.call(context, request, response, state);
