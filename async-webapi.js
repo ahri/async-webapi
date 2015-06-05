@@ -25,7 +25,7 @@ function getDataPromise (request) {
     try {
       deferred.resolve(JSON.parse(body));
     } catch (err) {
-      deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message : ".")));
+      deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message + " in: " + body : ".")));
     }
   });
 
@@ -213,7 +213,7 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Valid Command",
     function (request, state) {
-      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"] === "application/json; charset=utf-8";
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8";
     },
     function (request, response, state) {
       var command = request.url.substr(10);
