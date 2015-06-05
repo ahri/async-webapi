@@ -9,7 +9,7 @@ if (process.env.DEBUG) {
   Q.longStackSupport = true;
 }
 
-function getDataPromise (request) {
+function dataPromise (request) {
   var deferred = Q.defer();
   if (!request || !request.on) {
     deferred.reject(new Error("Pass a request"));
@@ -75,7 +75,7 @@ function ApiBuilder(app) {
     ;
   }
 
-  var missing = ["initRequestState", "getListOfCommands", "executeCommand", "getFirstEventId", "getEvent"]
+  var missing = ["initRequestState", "listOfCommands", "executeCommand", "firstEventId", "eventForId"]
     .map(function (method) {
       return [method, app[method] === undefined];
     })
@@ -102,7 +102,7 @@ function ApiBuilder(app) {
     },
     function (request, response, state) {
       response
-          .setBody(app.getRootListing !== undefined ? app.getRootListing(state) : ["/commands", "/events"])
+          .setBody(app.rootListing !== undefined ? app.rootListing(state) : ["/commands", "/events"])
       ;
     }
   ));
@@ -110,7 +110,7 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Event Stream Root - No Events",
     function (request, state) {
-      var first = app.getFirstEventId(state);
+      var first = app.firstEventId(state);
       return request.method === "GET" && request.url === "/events" && (first === undefined || first === null);
     },
     function (request, response, state) {
@@ -124,14 +124,14 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Event Stream Root - With Event",
     function (request, state) {
-      var first = app.getFirstEventId(state);
+      var first = app.firstEventId(state);
       return request.method === "GET" && request.url === "/events" && (first !== undefined && first !== null);
     },
     function (request, response, state) {
       response
           .setStatus(200)
           .setBody({
-            next: "/events/" + app.getFirstEventId(state)
+            next: "/events/" + app.firstEventId(state)
           })
       ;
     }
@@ -144,7 +144,7 @@ function ApiBuilder(app) {
     },
     function (request, response, state) {
       var id = request.url.substr(8),
-          ev = app.getEvent(state, id);
+          ev = app.eventForId(state, id);
 
       if (!ev) {
         doError(response, 404, "Not Found", "The event you're looking for doesn't exist");
@@ -177,7 +177,7 @@ function ApiBuilder(app) {
     },
     function (request, response, state) {
       response
-          .setBody(app.getListOfCommands(state))
+          .setBody(app.listOfCommands(state))
       ;
     }
   ));
@@ -213,17 +213,17 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Valid Command",
     function (request, state) {
-      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8";
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (request.headers["content-type"] !== undefined && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8");
     },
     function (request, response, state) {
       var command = request.url.substr(10);
 
-      if (app.getListOfCommands(state).indexOf(command) === -1) {
+      if (app.listOfCommands(state).indexOf(command) === -1) {
         doError(response, 404, "Not Found", "The command you're looking for doesn't exist");
         return;
       }
 
-      return this.getDataPromise()
+      return this.dataPromise()
           .then(function (message) {
             app.executeCommand(state, command, message);
             response
@@ -245,7 +245,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  var appSuppliedStrategies = app.getRoutingStrategies !== undefined ? app.getRoutingStrategies() : [];
+  var appSuppliedStrategies = app.routingStrategies !== undefined ? app.routingStrategies() : [];
   for (var i = 0; i < appSuppliedStrategies.length; i++) {
     this._router.addStrategy(appSuppliedStrategies[i]);
   }
@@ -264,12 +264,12 @@ ApiBuilder.prototype.build = function () {
       var response = new Response();
       response
           .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
-          .setHeader("Access-Control-Allow-Origin", (self._app.getCorsOrigin ? self._app.getCorsOrigin(state) : ""))
-          .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders(state) : ["Content-Type"]).join(", "))
+          .setHeader("Access-Control-Allow-Origin", (self._app.corsOrigin ? self._app.corsOrigin(state) : ""))
+          .setHeader("Access-Control-Allow-Headers", (self._app.corsAllowedHeaders ? self._app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
       ;
 
       var strategyContext = {
-        getDataPromise: function () { return getDataPromise(req); },
+        dataPromise: function () { return dataPromise(req); },
       };
       Object.freeze(strategyContext);
 

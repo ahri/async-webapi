@@ -146,10 +146,10 @@ function buildApi(app) {
       beforeEach(function () {
         app = {
           initRequestState: function (state) {},
-          getListOfCommands: function (state) { return []; },
+          listOfCommands: function (state) { return []; },
           executeCommand: function (state, command, message) {},
-          getFirstEventId: function (state) {},
-          getEvent: function (state, id) {},
+          firstEventId: function (state) {},
+          eventForId: function (state, id) {},
         };
       });
 
@@ -200,7 +200,7 @@ function buildApi(app) {
         });
 
         it('should 204 when there are no events but /events is queried', function (done) {
-          app.getFirstEventId = function () { return null; };
+          app.firstEventId = function () { return null; };
 
           api
             .notJson()
@@ -212,7 +212,7 @@ function buildApi(app) {
         describe('when there are events', function () {
           it('should forward to the earliest event from /events', function (done) {
             var firstEventId = "foo";
-            app.getFirstEventId = function (req) {
+            app.firstEventId = function (req) {
               return firstEventId;
             };
 
@@ -232,7 +232,7 @@ function buildApi(app) {
                 next: 'bar',
               };
 
-              app.getEvent = function (req, eventId) {
+              app.eventForId = function (req, eventId) {
                 return event;
               };
 
@@ -254,7 +254,7 @@ function buildApi(app) {
                 next: 'bar',
               };
 
-              app.getEvent = function (req, eventId) {
+              app.eventForId = function (req, eventId) {
                 return event;
               };
 
@@ -272,7 +272,7 @@ function buildApi(app) {
                 message: "event message",
               };
 
-              app.getEvent = function (req, eventId) {
+              app.eventForId = function (req, eventId) {
                 return event;
               };
 
@@ -304,7 +304,7 @@ function buildApi(app) {
         var uid = 'abc123', api, users, pubsub, eventStore, userIndex;
 
         beforeEach(function () {
-          app.getListOfCommands = function (state) {
+          app.listOfCommands = function (state) {
             return ['foo', 'bar', 'baz'];
           };
 
@@ -383,7 +383,7 @@ function buildApi(app) {
 
           var executeCommandError;
 
-          app.getListOfCommands = function (state) { return ["foo"]; };
+          app.listOfCommands = function (state) { return ["foo"]; };
           app.executeCommand = function (state, cmd, message) {
             if (cmd !== "foo") {
               executeCommandError = "cmd should be 'foo', but is '" + cmd + "'";
@@ -415,7 +415,7 @@ function buildApi(app) {
         });
 
         it('should error on bad JSON command messages', function (done) {
-          app.getListOfCommands = function (state) { return ["foo"]; };
+          app.listOfCommands = function (state) { return ["foo"]; };
 
           api
             .expectStatus(406)
@@ -426,7 +426,7 @@ function buildApi(app) {
         });
 
         it('should error on misbehaving app', function (done) {
-          app.getListOfCommands = function (state) { return ["foo"]; };
+          app.listOfCommands = function (state) { return ["foo"]; };
           app.executeCommand = function () {
             throw new Error("misbehaving");
           };
@@ -445,7 +445,7 @@ function buildApi(app) {
         var api;
 
         beforeEach(function () {
-          app.getRoutingStrategies = function () {
+          app.routingStrategies = function () {
             return [
               new Router.Strategy(
                   "sync",
@@ -484,7 +484,7 @@ function buildApi(app) {
                     return request.url === "/reflect";
                   },
                   function (request, response, state) {
-                    return this.getDataPromise()
+                    return this.dataPromise()
                         .then(function (data) {
                           response
                               .setBody(data)
@@ -565,7 +565,7 @@ function buildApi(app) {
             return { foo: "bar" };
           };
 
-          app.getFirstEventId = function (state) {
+          app.firstEventId = function (state) {
             state.bar = "foo";
           };
 
@@ -590,7 +590,7 @@ function buildApi(app) {
             };
           };
 
-          app.getFirstEventId = function (state) {
+          app.firstEventId = function (state) {
             if (state.user.events) {
               return 0;
             }
@@ -609,7 +609,7 @@ function buildApi(app) {
       describe('with custom config', function () {
         it('should allow the application to specify a custom CORS origin', function (done) {
           app.initRequestState = function () { return { origin: "Custom" }; };
-          app.getCorsOrigin = function (state) { return state.origin; };
+          app.corsOrigin = function (state) { return state.origin; };
           buildApi(app)
             .get("/")
             .expect("Access-Control-Allow-Origin", "Custom")
@@ -618,7 +618,7 @@ function buildApi(app) {
 
         it('should allow the application to specify custom CORS headers', function (done) {
           app.initRequestState = function () { return { header: "Custom" }; };
-          app.getCorsAllowedHeaders = function (state) { return ["X-" + state.header]; };
+          app.corsAllowedHeaders = function (state) { return ["X-" + state.header]; };
           buildApi(app)
             .get("/")
             .expect("Access-Control-Allow-Headers", "X-Custom")
@@ -627,7 +627,7 @@ function buildApi(app) {
 
         it('should allow the application to configure the listings at the root', function (done) {
           app.initRequestState = function () { return {root: 1}; };
-          app.getRootListing = function (state) { return [state.root]; };
+          app.rootListing = function (state) { return [state.root]; };
           buildApi(app)
             .get("/")
             .expect([1])
