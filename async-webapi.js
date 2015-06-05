@@ -264,7 +264,7 @@ ApiBuilder.prototype.build = function () {
       var response = new Response();
       response
           .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
-          .setHeader("Access-Control-Allow-Origin", (self._app.getCorsOrigin ? self._app.getCorsOrigin(state) : "*"))
+          .setHeader("Access-Control-Allow-Origin", (self._app.getCorsOrigin ? self._app.getCorsOrigin(state) : ""))
           .setHeader("Access-Control-Allow-Headers", (self._app.getCorsAllowedHeaders ? self._app.getCorsAllowedHeaders(state) : ["Content-Type"]).join(", "))
       ;
 

@@ -645,7 +645,7 @@ function buildApi(app) {
         it('should default to allow all CORS origins', function (done) {
           api
             .get('/')
-            .expect('Access-Control-Allow-Origin', '*')
+            .expect('Access-Control-Allow-Origin', '')
             .end(done);
         });
 
