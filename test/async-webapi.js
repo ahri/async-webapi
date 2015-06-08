@@ -78,6 +78,9 @@ function ReqPrimer(api) {
         if (res.header['content-type'] !== 'application/json; charset=utf-8') {
           return "expected 'Content-Type: application/json; charset=utf-8', got " + res.header['content-type'];
         }
+        if (res.header['x-content-type-options'] !== 'nosniff') {
+          return "expected 'X-Content-Type-Options: nosniff', got " + res.header['x-content-type-options'];
+        }
       });
     } else {
       result.expect(function (res) {
