@@ -183,7 +183,7 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "Invalid Command with non-POST HTTP method",
+    "Invalid Command - non-POST HTTP method",
     function (request, state) {
       return request.url.substr(0, 10) === "/commands/" && request.method !== "POST" && request.method !== "OPTIONS";
     },
@@ -197,7 +197,7 @@ function ApiBuilder(app) {
   ));
 
   this._router.addStrategy(new Router.Strategy(
-    "Invalid Command with non-JSON POST",
+    "Invalid Command - non-JSON POST",
     function (request, state) {
       return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (request.headers["content-type"] === undefined || request.headers["content-type"].toLowerCase() !== "application/json; charset=utf-8");
     },
