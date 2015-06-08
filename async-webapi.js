@@ -225,7 +225,7 @@ function ApiBuilder(app) {
 
       return this.dataPromise()
           .then(function (message) {
-            app.executeCommand(state, command, message);
+            app.executeCommand(state, command, message, request.headers['x-client-id'], request.headers['x-command-id']);
             response
                 .setStatus(204)
             ;

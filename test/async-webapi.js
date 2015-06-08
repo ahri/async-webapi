@@ -635,6 +635,58 @@ function buildApi(app) {
         });
       });
 
+      describe('optional IDs', function () {
+        var api;
+
+        beforeEach(function () {
+          api = buildApi(app);
+        });
+
+        it('should pass along an (optional) client ID sent in headers', function (done) {
+          var clientId = 'abc123';
+
+          app.listOfCommands = function () { return ['foo']; };
+          app.executeCommand = function (state, command, message, passedClientId) {
+            if (command === "foo" && passedClientId === clientId) {
+              done();
+            }
+          };
+
+          api
+            .expectStatus(204)
+            .notJson()
+            .noContent()
+            .post('/commands/foo')
+            .set('X-Client-ID', clientId)
+            .set('Content-Type', 'application/json; charset=utf-8')
+            .send({})
+            .expect('')
+            .end(function () {});
+        });
+
+        it('should pass along an (optional) command ID sent in headers', function (done) {
+          var commandId = 'abc123';
+
+          app.listOfCommands = function () { return ['foo']; };
+          app.executeCommand = function (state, command, message, passedClientId, passedCommandId) {
+            if (command === "foo" && passedCommandId === commandId) {
+              done();
+            }
+          };
+
+          api
+            .expectStatus(204)
+            .notJson()
+            .noContent()
+            .post('/commands/foo')
+            .set('X-Command-ID', commandId)
+            .set('Content-Type', 'application/json; charset=utf-8')
+            .send({})
+            .expect('')
+            .end(function () {});
+        });
+      });
+
       describe('CORS', function () {
         var api;
 
