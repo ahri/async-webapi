@@ -23,7 +23,9 @@ function dataPromise (request) {
 
   request.on("end", function () {
     try {
-      deferred.resolve(JSON.parse(body));
+      var message = JSON.parse(body);
+      Object.freeze(message);
+      deferred.resolve(message);
     } catch (err) {
       deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message + " in: " + body : ".")));
     }
@@ -199,7 +201,7 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Invalid Command - non-JSON POST",
     function (request, state) {
-      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (request.headers["content-type"] === undefined || request.headers["content-type"].toLowerCase() !== "application/json; charset=utf-8");
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-length"] > 0 && (request.headers["content-type"] === undefined || request.headers["content-type"].toLowerCase() !== "application/json; charset=utf-8");
     },
     function (request, response, state) {
       response
@@ -213,7 +215,7 @@ function ApiBuilder(app) {
   this._router.addStrategy(new Router.Strategy(
     "Valid Command",
     function (request, state) {
-      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (request.headers["content-type"] !== undefined && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8");
+      return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (!request.headers["content-length"] || (request.headers["content-type"] !== undefined && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8"));
     },
     function (request, response, state) {
       var command = request.url.substr(10);
@@ -223,13 +225,24 @@ function ApiBuilder(app) {
         return;
       }
 
+      var exec = function (message) {
+        app.executeCommand(state, command, message, request.headers['x-client-id'], request.headers['x-command-id']);
+
+        response
+            .setStatus(204)
+        ;
+      };
+
+      if (!request.headers['content-length']) {
+        var message = {};
+        Object.freeze(message);
+
+        exec(message);
+        return;
+      }
+
       return this.dataPromise()
-          .then(function (message) {
-            app.executeCommand(state, command, message, request.headers['x-client-id'], request.headers['x-command-id']);
-            response
-                .setStatus(204)
-            ;
-          });
+          .then(exec);
     }
   ));
 

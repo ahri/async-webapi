@@ -353,8 +353,25 @@ function buildApi(app) {
             api
               .expectStatus(406)
               .post('/commands/foo')
+              .send({foo:1})
               .expect('Allow', 'POST (application/json)')
               .end(done);
+          });
+
+          it('should allow content-less POSTs', function (done) {
+            app.executeCommand = function (state, command, message) {
+              if (command === "foo" && (typeof message) === "object" && JSON.stringify(message) === "{}") {
+                done();
+              }
+            };
+
+            api
+              .expectStatus(204)
+              .notJson()
+              .noContent()
+              .post('/commands/foo')
+              .send('')
+              .end(function () {});
           });
 
           it('should not receive content from POST for commands', function (done) {
