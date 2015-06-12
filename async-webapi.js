@@ -23,8 +23,7 @@ function dataPromise (request) {
 
   request.on("end", function () {
     try {
-      var message = JSON.parse(body);
-      Object.freeze(message);
+      var message = Object.freeze(JSON.parse(body));
       deferred.resolve(message);
     } catch (err) {
       deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message + " in: " + body : ".")));
@@ -234,8 +233,7 @@ function ApiBuilder(app) {
       };
 
       if (!request.headers['content-length']) {
-        var message = {};
-        Object.freeze(message);
+        var message = Object.freeze({});
 
         exec(message);
         return;
@@ -271,8 +269,7 @@ ApiBuilder.prototype.build = function () {
 
   return function (req, res) {
     try {
-      var state = self._app.initRequestState(req) || {};
-      Object.freeze(state);
+      var state = Object.freeze(self._app.initRequestState(req) || {});
 
       var response = new Response();
       response
@@ -281,10 +278,9 @@ ApiBuilder.prototype.build = function () {
           .setHeader("Access-Control-Allow-Headers", (self._app.corsAllowedHeaders ? self._app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
       ;
 
-      var strategyContext = {
+      var strategyContext = Object.freeze({
         dataPromise: function () { return dataPromise(req); },
-      };
-      Object.freeze(strategyContext);
+      });
 
       Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
           .catch(function (err) {
