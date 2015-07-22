@@ -4,7 +4,7 @@ var expect = require('chai').expect,
     CommandClient = require('../command-client');
 
 describe('The CommandClient class', function () {
-  var commandClient, localApp, storage, readModel, writeModel, http, backoff, platform;
+  var commandClient, localApp, storage, repo, http, backoff, platform;
 
   beforeEach(function () {
     var cmds = {};
@@ -13,12 +13,10 @@ describe('The CommandClient class', function () {
       foo: function () {},
       xyz: function () {},
     };
-    readModel = {
+    repo = {
       getFirst: function () {
         return cmds.first;
-      }
-    };
-    writeModel = {
+      },
       add: function (cmd, data) {
         if (cmds.last === undefined) {
           cmds.first = {
@@ -59,14 +57,14 @@ describe('The CommandClient class', function () {
         error: function () {},
       },
     };
-    commandClient = new CommandClient(localApp, readModel, writeModel, http, backoff, platform);
+    commandClient = CommandClient(localApp, repo, http, backoff, platform);
   });
 
   it('should store the command', function (done) {
-    var writeModelAdd = writeModel.add;
+    var repoAdd = repo.add;
 
-    writeModel.add = function (cmd, data) {
-      writeModelAdd.call(writeModel, cmd, data);
+    repo.add = function (cmd, data) {
+      repoAdd.call(repo, cmd, data);
       if (cmd === "foo" && data === "bar") {
         done();
       }
@@ -121,9 +119,9 @@ describe('The CommandClient class', function () {
   });
 
   it('should remove the command', function (done) {
-    var writeModelRemoveFirst = writeModel.removeFirst;
-    writeModel.removeFirst = function () {
-      writeModelRemoveFirst.call(writeModel);
+    var repoRemoveFirst = repo.removeFirst;
+    repo.removeFirst = function () {
+      repoRemoveFirst.call(repo);
       done();
     };
 
@@ -191,7 +189,7 @@ describe('The CommandClient class', function () {
       http.post = function(uri, data, callback) {
         call++;
         if (call === 1) {
-          callback(new Error("no net connection"), null, null, null, null);
+          callback(Error("no net connection"), null, null, null, null);
         } else {
           done();
         }
@@ -213,7 +211,7 @@ describe('The CommandClient class', function () {
       http.post = function(uri, data, callback) {
         call++;
         if (call <= 2) {
-          callback(new Error("no net connection"), null, null, null, null);
+          callback(Error("no net connection"), null, null, null, null);
         }
       };
 
@@ -232,7 +230,7 @@ describe('The CommandClient class', function () {
       http.post = function(uri, data, callback) {
         call++;
         if (call <= 2) {
-          callback(new Error("no net connection"), null, null, null, null);
+          callback(Error("no net connection"), null, null, null, null);
         }
       };
 
@@ -251,7 +249,7 @@ describe('The CommandClient class', function () {
   describe('callLocalQueueNetwork', function () {
     it('should not fire anything off when callLocalQueueNetwork() is called', function () {
       http.post = function(uri, data, callback) {
-        throw new Error("Should not be called"); // TODO: async failure by calling?
+        throw Error("Should not be called"); // TODO: async failure by calling?
       };
 
       commandClient.callLocalQueueNetwork("foo", "bar");
@@ -261,7 +259,7 @@ describe('The CommandClient class', function () {
   describe('backoff behaviour', function () {
     it('upon client error, should immediately back off, using the correct value in its call to the setTimeout platform method', function () {
       http.post = function(uri, data, callback) {
-        callback(new Error("blah"), null, null, null, null);
+        callback(Error("blah"), null, null, null, null);
       };
 
       backoff.clientErrorIncrease = function (currentTimeMs) { return (currentTimeMs+1)*10; };

@@ -3,50 +3,55 @@
 var chalk = require('chalk');
 
 function Response() {
-  this._headers = {};
-  this._status = 200;
+  var _headers = {},
+      _status = 200,
+      _body;
+
+  function setHeader(name, value) {
+    _headers[name] = value;
+    return this;
+  }
+
+  return {
+    setHeader: setHeader,
+
+    setStatus: function setStatus(status) {
+      _status = status;
+      return this;
+    },
+
+    setBody: function setBody(body) {
+      _body = body;
+      return this;
+    },
+
+    write: function write(response) {
+      if (process.env.DEBUG) {
+        if (_status >= 500 && _status < 600) {
+          console.log(chalk.red(" <- " + (_body && _body.error ? _body.error : _status)));
+        } else if (_status >= 400 && _status < 500) {
+          console.log(chalk.yellow(" <- " + _status));
+        } else if (_status >= 300 && _status < 400) {
+          console.log(chalk.gray(" <- " + _status));
+        } else if (_status >= 200 && _status < 300) {
+          console.log(chalk.cyan(" <- " + _status));
+        }
+      }
+
+      if (_body) {
+        setHeader("Content-Type", "application/json; charset=utf-8");
+        setHeader("X-Content-Type-Options", "nosniff");
+      }
+
+      response.writeHead(_status, _headers);
+
+      if (_body) {
+        response.end(JSON.stringify(_body));
+      } else {
+        response.end();
+      }
+    },
+  };
 }
-
-Response.prototype.setHeader = function (name, value) {
-  this._headers[name] = value;
-  return this;
-};
-
-Response.prototype.setStatus = function (status) {
-  this._status = status;
-  return this;
-};
-
-Response.prototype.setBody = function (body) {
-  this._body = body;
-  return this;
-};
-
-Response.prototype.write = function (response) {
-  if (process.env.DEBUG) {
-    if (this._status >= 500 && this._status < 600) {
-      console.log(chalk.red(" <- " + (this._body && this._body.error ? this._body.error : this._status)));
-    } else if (this._status >= 400 && this._status < 500) {
-      console.log(chalk.yellow(" <- " + this._status));
-    } else if (this._status >= 300 && this._status < 400) {
-      console.log(chalk.gray(" <- " + this._status));
-    } else if (this._status >= 200 && this._status < 300) {
-      console.log(chalk.cyan(" <- " + this._status));
-    }
-  }
-
-  if (this._body) {
-    this.setHeader("Content-Type", "application/json; charset=utf-8");
-    this.setHeader("X-Content-Type-Options", "nosniff");
-  }
-
-  response.writeHead(this._status, this._headers);
-
-  if (this._body) {
-    response.end(JSON.stringify(this._body));
-  } else {
-    response.end();
-  }
-};
 
 module.exports = Response;

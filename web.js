@@ -2,6 +2,6 @@
 
 var AsyncWebApi = require('./async-webapi');
 
-var server = new AsyncWebApi().build();
+var server = AsyncWebApi().build();
 
 server.listen(1234);

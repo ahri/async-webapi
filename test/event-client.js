@@ -3,25 +3,23 @@
 var expect = require('chai').expect,
     EventClient = require('../event-client');
 
-function DummyServer(responses)
-{
-  this._responses = responses;
-  this._current = 0;
-}
-
-DummyServer.prototype.http = function () {
-  var self = this;
+function DummyServer(responses) {
+  var current = 0;
 
   return {
-    get: function (uri, callback) {
-      callback.apply(null, self._responses[self._current]);
+    http: function http() {
+      return {
+        get: function (uri, callback) {
+          callback.apply(null, responses[current]);
 
-      if (self._current < self._responses.length - 1) {
-        self._current++;
-      }
-    }
+          if (current < responses.length - 1) {
+            current++;
+          }
+        }
+      };
+    },
   };
-};
+}
 
 describe('The Event Client', function () {
   var client, backoff, platform;
@@ -47,11 +45,18 @@ describe('The Event Client', function () {
   });
 
   afterEach(function () {
-    client.disable();
+    (function hackUntilIDeleteThisInFavourOfWebsockets() { // TODO
+      if (client !== undefined) {
+        client.disable();
+        return;
+      }
+
+      setTimeout(hackUntilIDeleteThisInFavourOfWebsockets, 0);
+    })();
   });
 
   it('should call a transition callback when moving from /events to /events/1', function (done) {
-    var dummyServer = new DummyServer([
+    var dummyServer = DummyServer([
       [null, '/events', 200, {}, {next: '/events/1'}],
       [null, '/events/1', 200, {}, {message: "at head"}],
     ]);
@@ -60,11 +65,11 @@ describe('The Event Client', function () {
       done();
     };
 
-    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   it('should traverse all events up to the head', function (done) {
-    var dummyServer = new DummyServer([
+    var dummyServer = DummyServer([
       [null, '/events', 200, {}, {next: '/events/1'}],
       [null, '/events/1', 200, {}, {message: "foo", next: '/events/2'}],
       [null, '/events/2', 200, {}, {message: "at head"}],
@@ -79,11 +84,11 @@ describe('The Event Client', function () {
       }
     };
 
-    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   it('should poll normally if it receives a 204 - there are no events', function (done) {
-    var dummyServer = new DummyServer([
+    var dummyServer = DummyServer([
       [null, '/events', 204, {}, {}],
       [null, '/events', 200, {}, {next: '/events/1'}],
       [null, '/events/1', 200, {}, {message: "at head"}], // NB. transition call happens when we move to here
@@ -91,7 +96,7 @@ describe('The Event Client', function () {
 
     var transition = function (type, message) { done(); };
 
-    client = new EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
   });
 
   describe('under server error conditions', function () {
@@ -111,7 +116,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function (type, message) {}, http, backoff, platform);
+      client = EventClient('/events', function (type, message) {}, http, backoff, platform);
     });
   });
 
@@ -122,7 +127,7 @@ describe('The Event Client', function () {
         get: function (uri, callback) {
           if (calls === 0) {
             calls++;
-            callback(new Error("the world is burning"), null, null, null, null);
+            callback(Error("the world is burning"), null, null, null, null);
           }
         }
       };
@@ -132,14 +137,14 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = new EventClient('/events', function (type, message) {}, http, backoff, platform);
+      client = EventClient('/events', function (type, message) {}, http, backoff, platform);
     });
   });
 
   describe('edge cases', function () {
     it.skip('https required should kill off the client', function (done) {
-      var dummyServer = new DummyServer([
-        [new Error("https required"), '/events', 403, {}, {}],
+      var dummyServer = DummyServer([
+        [Error("https required"), '/events', 403, {}, {}],
       ]);
 
       backoff.clientErrorCallback = function (uri, err, delay) {
@@ -147,12 +152,12 @@ describe('The Event Client', function () {
         done();
       };
 
-      new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
     });
 
     it.skip('authentication required should kill off the client', function (done) {
-      var dummyServer = new DummyServer([
-        [new Error("unauthorized"), '/events', 401, {}, {}],
+      var dummyServer = DummyServer([
+        [Error("unauthorized"), '/events', 401, {}, {}],
       ]);
 
       backoff.clientErrorCallback = function (uri, err, delay) {
@@ -160,7 +165,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      new EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
     });
   });
 });

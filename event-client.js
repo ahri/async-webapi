@@ -1,77 +1,76 @@
 'use strict';
 
 function AsyncPoller(platform, strategy, http) {
-  this._platform = platform;
-  this._strategy = strategy;
-  this._http = http;
-  this._enabled = true;
+  var enabled = true;
+
+  return {
+    poll: function poll(uri, delay, callback) {
+      platform.setTimeout(function () {
+        if (!enabled) {
+          return;
+        }
+
+        http.get(uri, function (err, uri, status, headers, body) {
+          if (callback) {
+            platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
+          }
+          strategy.exec(err, delay, uri, status, headers, body);
+        });
+      }, delay);
+    },
+
+    disable: function disable() {
+      enabled = false;
+    },
+  };
 }
 
-AsyncPoller.prototype.poll = function (uri, delay, callback) {
-  var self = this;
-
-  this._platform.setTimeout(function () {
-    if (!self._enabled) {
-      return;
-    }
-
-    self._http.get(uri, function (err, uri, status, headers, body) {
-      if (callback) {
-        self._platform.setTimeout(function () { callback(err, uri, status, headers, body); }, 0);
-      }
-      self._strategy.exec(err, delay, uri, status, headers, body);
-    });
-  }, delay);
-};
-
-AsyncPoller.prototype.disable = function () {
-  this._enabled = false;
-};
-
 function Strategy(debug) {
-  this._debug = debug || function (args) {
+  debug = debug || function (args) {
     return "the provided arguments";
   };
 
-  this._strategies = [];
+  var strategies = [];
+
+  return {
+    exec: function exec(err, delay, uri, status, headers, body) {
+      var candidate = null;
+      for (var i = 0; i < strategies.length; i++) {
+        if (!strategies[i].canHandle(err, uri, status, headers, body)) {
+          continue;
+        }
+
+        if (candidate !== null) {
+          throw Error("Only one strategy is allowed to handle a set of data, but candidates " + candidate + " and " + i + " both handle: " + debug(arguments));
+        }
+
+        candidate = i;
+      }
+
+      if (candidate === null) {
+        throw Error("No strategy can handle: " + debug(arguments));
+      }
+
+      strategies[candidate].exec(err, delay, uri, status, headers, body);
+    },
+
+    add: function add(strategy) {
+      strategies.push(strategy);
+    },
+  };
 }
-
-Strategy.prototype.exec = function (err, delay, uri, status, headers, body) {
-  var candidate = null;
-  for (var i = 0; i < this._strategies.length; i++) {
-    if (!this._strategies[i].canHandle(err, uri, status, headers, body)) {
-      continue;
-    }
-
-    if (candidate !== null) {
-      throw new Error("Only one strategy is allowed to handle a set of data, but candidates " + candidate + " and " + i + " both handle: " + this._debug(arguments));
-    }
-
-    candidate = i;
-  }
-
-  if (candidate === null) {
-    throw new Error("No strategy can handle: " + this._debug(arguments));
-  }
-
-  this._strategies[candidate].exec(err, delay, uri, status, headers, body);
-};
-
-Strategy.prototype.add = function (strategy) {
-  this._strategies.push(strategy);
-};
 
 function EventClient(initialUri, eventCallback, http, backoff, platform) {
   if (initialUri === undefined) {
-    throw new Error("Provide an initial uri");
+    throw Error("Provide an initial uri");
   }
 
   if (eventCallback === undefined || eventCallback.call === undefined || eventCallback.length !== 2) {
-    throw new Error("Provide an event callback with 2 params: eventType, eventMessage");
+    throw Error("Provide an event callback with 2 params: eventType, eventMessage");
   }
 
   if (http === undefined) {
-    throw new Error("Provide an http interface");
+    throw Error("Provide an http interface");
   }
 
   if (backoff === undefined) {
@@ -92,7 +91,7 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     };
   }
 
-  var strategy = new Strategy(function argsToObj(args) {
+  var strategy = Strategy(function argsToObj(args) {
     return "{err: " + args[0] +
            //", delay: " + args[1] + // omitted because canHandle doesn't inspect it
            ", uri: " + args[2] +
@@ -107,14 +106,13 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     }
 
     if (body.type === undefined || body.message === undefined) {
-      err = new Error("Expected both type and message to be set in body");
+      err = Error("Expected both type and message to be set in body");
     }
 
     eventCallback(body.type, body.message);
   };
 
-  var asyncPoller = new AsyncPoller(platform, strategy, http);
-  this._asyncPoller = asyncPoller;
+  var asyncPoller = AsyncPoller(platform, strategy, http);
 
   strategy.add({
     canHandle: function (err, uri, status, headers, body) {
@@ -190,10 +188,12 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
   });
 
   asyncPoller.poll(initialUri, 0);
-}
 
-EventClient.prototype.disable = function () {
-  this._asyncPoller.disable();
-};
+  return {
+    disable: function disable() {
+      asyncPoller.disable();
+    },
+  };
+}
 
 module.exports = EventClient;

@@ -1,4 +1,6 @@
 {
+  "newcap": false,
+
   "globalstrict": true,
   "globals": {
     "console": false,

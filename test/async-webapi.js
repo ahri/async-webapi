@@ -25,55 +25,26 @@ function checkForErr(message) {
 }
 
 function ReqPrimer(api) {
-  var self = this;
-
-  self._api = api;
-
   // some defaults
-  self._expectJson = true;
-  self._expectBody = true;
-  self._secure = true;
-  self._expectCached = false;
-  self._expectStatus = 200;
+  var _expectJson = true,
+      _expectBody = true,
+      _secure = true,
+      _expectCached = false,
+      _expectStatus = 200;
 
-  self.notJson = function () {
-    self._expectJson = false;
-    return self;
-  };
-
-  self.noContent = function () {
-    self._expectBody = false;
-    return self;
-  };
-
-  self.insecure = function () {
-    self._secure = false;
-    return self;
-  };
-
-  self.expectCached = function () {
-    self._expectCached = true;
-    return self;
-  };
-
-  self.expectStatus = function (status) {
-    self._expectStatus = status;
-    return self;
-  };
-
-  self._query = function (func, query) {
+  function _query(func, query) {
     var result = func(query);
 
     // from client
     result.set('Accept', 'application/json');
 
     // from proxy
-    if (self._secure) {
+    if (_secure) {
       result.set('X-Forwarded-Proto', 'https');
     }
 
     // general expectations
-    if (self._expectJson) {
+    if (_expectJson) {
       result.expect(function (res) {
         if (res.header['content-type'] !== 'application/json; charset=utf-8') {
           return "expected 'Content-Type: application/json; charset=utf-8', got " + res.header['content-type'];
@@ -90,7 +61,7 @@ function ReqPrimer(api) {
       });
     }
 
-    if (!self._expectBody) {
+    if (!_expectBody) {
       result.expect('');
       // result.expect(function (res) {
       //   if (res.body && res.body !== {}) {
@@ -99,15 +70,15 @@ function ReqPrimer(api) {
       // });
     }
 
-    if (self._expectCached && !process.env.DEBUG) {
+    if (_expectCached && !process.env.DEBUG) {
       result.expect('cache-control', 'public, max-age=31536000');
     } else {
       result.expect('cache-control', 'public, max-age=0, no-cache, no-store');
     }
 
     result.expect(function (res) {
-      if (res.status !== self._expectStatus) {
-        return "expected " + self._expectStatus + ", got " + res.status + ", detail: " + JSON.stringify(res.body);
+      if (res.status !== _expectStatus) {
+        return "expected " + _expectStatus + ", got " + res.status + ", detail: " + JSON.stringify(res.body);
       }
     });
 
@@ -119,23 +90,50 @@ function ReqPrimer(api) {
     });*/
 
     return result;
-  };
+  }
 
-  self.get = function(query) {
-    return self._query(self._api.get, query);
-  };
+  return {
+    notJson: function notJson() {
+      _expectJson = false;
+      return this;
+    },
 
-  self.post = function(query) {
-    return self._query(self._api.post, query);
-  };
+    noContent: function noContent() {
+      _expectBody = false;
+      return this;
+    },
 
-  self.options = function(query) {
-    return self._query(self._api.options, query);
+    insecure: function insecure() {
+      _secure = false;
+      return this;
+    },
+
+    expectCached: function expectCached() {
+      _expectCached = true;
+      return this;
+    },
+
+    expectStatus: function expectStatus(status) {
+      _expectStatus = status;
+      return this;
+    },
+
+    get: function get(query) {
+      return _query(api.get, query);
+    },
+
+    post: function post(query) {
+      return _query(api.post, query);
+    },
+
+    options: function options(query) {
+      return _query(api.options, query);
+    },
   };
 }
 
 function buildApi(app) {
-  return new ReqPrimer(request(http.createServer(new AsyncWebApi(app)
+  return ReqPrimer(request(http.createServer(AsyncWebApi(app)
     .build()).listen()
   ));
 }
@@ -149,7 +147,7 @@ function buildApi(app) {
       beforeEach(function () {
         app = {
           initRequestState: function (state) {},
-          listOfCommands: function (state) { return []; },
+          commands: function (state) { return {}; },
           executeCommand: function (state, command, message) {},
           firstEventId: function (state) {},
           eventForId: function (state, id) {},
@@ -307,8 +305,8 @@ function buildApi(app) {
         var uid = 'abc123', api, users, pubsub, eventStore, userIndex;
 
         beforeEach(function () {
-          app.listOfCommands = function (state) {
-            return ['foo', 'bar', 'baz'];
+          app.commands = function (state) {
+            return {'foo': "", 'bar': "", 'baz': ""};
           };
 
           api = buildApi(app);
@@ -321,7 +319,7 @@ function buildApi(app) {
             api
               .get('/commands')
               .expect(function (res) {
-                if (res.body.indexOf(cmd) === -1) {
+                if (!(cmd in res.body)) {
                   return cmd + " is not set";
                 }
               })
@@ -403,7 +401,7 @@ function buildApi(app) {
 
           var executeCommandError;
 
-          app.listOfCommands = function (state) { return ["foo"]; };
+          app.commands = function (state) { return {"foo": ""}; };
           app.executeCommand = function (state, cmd, message) {
             if (cmd !== "foo") {
               executeCommandError = "cmd should be 'foo', but is '" + cmd + "'";
@@ -435,7 +433,7 @@ function buildApi(app) {
         });
 
         it('should error on bad JSON command messages', function (done) {
-          app.listOfCommands = function (state) { return ["foo"]; };
+          app.commands = function (state) { return {"foo": ""}; };
 
           api
             .expectStatus(406)
@@ -446,9 +444,9 @@ function buildApi(app) {
         });
 
         it('should error on misbehaving app', function (done) {
-          app.listOfCommands = function (state) { return ["foo"]; };
+          app.commands = function (state) { return {"foo": ""}; };
           app.executeCommand = function () {
-            throw new Error("misbehaving");
+            throw Error("misbehaving");
           };
 
           api
@@ -467,7 +465,7 @@ function buildApi(app) {
         beforeEach(function () {
           app.routingStrategies = function () {
             return [
-              new Router.Strategy(
+              Router.Strategy(
                   "sync",
                   function (request, state) {
                     return request.url === "/sync";
@@ -480,16 +478,16 @@ function buildApi(app) {
                       });
                   }
               ),
-              new Router.Strategy(
+              Router.Strategy(
                   "broken",
                   function (request, state) {
                     return request.url === "/broken";
                   },
                   function (request, response, state) {
-                    throw new Error("broken at runtime");
+                    throw Error("broken at runtime");
                   }
               ),
-              new Router.Strategy(
+              Router.Strategy(
                   "messing with this",
                   function (request, state) {
                     return request.url === "/messing_with_this";
@@ -498,7 +496,7 @@ function buildApi(app) {
                     this.foo = "bar";
                   }
               ),
-              new Router.Strategy(
+              Router.Strategy(
                   "reflect",
                   function (request, state) {
                     return request.url === "/reflect";
@@ -512,7 +510,7 @@ function buildApi(app) {
                         });
                   }
               ),
-              new Router.Strategy(
+              Router.Strategy(
                   "state",
                   function (request, state) {
                     return request.url === "/state";
@@ -665,7 +663,7 @@ function buildApi(app) {
         it('should pass along an (optional) client ID sent in headers', function (done) {
           var clientId = 'abc123';
 
-          app.listOfCommands = function () { return ['foo']; };
+          app.commands = function () { return {'foo': ""}; };
           app.executeCommand = function (state, command, message, passedClientId) {
             if (command === "foo" && passedClientId === clientId) {
               done();
@@ -687,7 +685,7 @@ function buildApi(app) {
         it('should pass along an (optional) command ID sent in headers', function (done) {
           var commandId = 'abc123';
 
-          app.listOfCommands = function () { return ['foo']; };
+          app.commands = function () { return {'foo': ""}; };
           app.executeCommand = function (state, command, message, passedClientId, passedCommandId) {
             if (command === "foo" && passedCommandId === commandId) {
               done();

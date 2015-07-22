@@ -12,7 +12,7 @@ if (process.env.DEBUG) {
 function dataPromise (request) {
   var deferred = Q.defer();
   if (!request || !request.on) {
-    deferred.reject(new Error("Pass a request"));
+    deferred.reject(Error("Pass a request"));
     return deferred.promise;
   }
 
@@ -26,7 +26,7 @@ function dataPromise (request) {
       var message = Object.freeze(JSON.parse(body));
       deferred.resolve(message);
     } catch (err) {
-      deferred.reject(new Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message + " in: " + body : ".")));
+      deferred.reject(Error("Only 'Content-Type: application/json; charset=utf-8' is accepted. Supplied JSON is invalid" + (process.env.DEBUG ? ": " + err.message + " in: " + body : ".")));
     }
   });
 
@@ -76,7 +76,7 @@ function ApiBuilder(app) {
     ;
   }
 
-  var missing = ["initRequestState", "listOfCommands", "executeCommand", "firstEventId", "eventForId"]
+  var missing = ["initRequestState", "commands", "executeCommand", "firstEventId", "eventForId"]
     .map(function (method) {
       return [method, app[method] === undefined];
     })
@@ -90,13 +90,12 @@ function ApiBuilder(app) {
   ;
 
   if (missing !== "") {
-    throw new Error("App is missing methods: " + missing);
+    throw Error("App is missing methods: " + missing);
   }
 
-  this._app = app;
-  this._router = new Router();
+  var router = Router();
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Root",
     function (request, state) {
       return request.method === "GET" && request.url === "/";
@@ -108,7 +107,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Event Stream Root - No Events",
     function (request, state) {
       var first = app.firstEventId(state);
@@ -122,7 +121,7 @@ function ApiBuilder(app) {
   ));
 
   // TODO: factor-out calls to app.methods() so that they're called only once-per-request
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Event Stream Root - With Event",
     function (request, state) {
       var first = app.firstEventId(state);
@@ -138,7 +137,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Event Specified",
     function (request, state) {
       return request.method === "GET" && request.url.substr(0, 8) === "/events/";
@@ -171,19 +170,19 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Commands",
     function (request, state) {
       return request.method === "GET" && request.url === "/commands";
     },
     function (request, response, state) {
       response
-          .setBody(app.listOfCommands(state))
+          .setBody(app.commands(state))
       ;
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Invalid Command - non-POST HTTP method",
     function (request, state) {
       return request.url.substr(0, 10) === "/commands/" && request.method !== "POST" && request.method !== "OPTIONS";
@@ -197,7 +196,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Invalid Command - non-JSON POST",
     function (request, state) {
       return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && request.headers["content-length"] > 0 && (request.headers["content-type"] === undefined || request.headers["content-type"].toLowerCase() !== "application/json; charset=utf-8");
@@ -211,7 +210,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "Valid Command",
     function (request, state) {
       return request.method === "POST" && request.url.substr(0, 10) === "/commands/" && (!request.headers["content-length"] || (request.headers["content-type"] !== undefined && request.headers["content-type"].toLowerCase() === "application/json; charset=utf-8"));
@@ -219,7 +218,7 @@ function ApiBuilder(app) {
     function (request, response, state) {
       var command = request.url.substr(10);
 
-      if (app.listOfCommands(state).indexOf(command) === -1) {
+      if (!(command in app.commands(state))) {
         doError(response, 404, "Not Found", "The command you're looking for doesn't exist");
         return;
       }
@@ -244,7 +243,7 @@ function ApiBuilder(app) {
     }
   ));
 
-  this._router.addStrategy(new Router.Strategy(
+  router.addStrategy(Router.Strategy(
     "CORS Preflight",
     function (request, state) {
       return request.method === "OPTIONS";
@@ -258,77 +257,76 @@ function ApiBuilder(app) {
 
   var appSuppliedStrategies = app.routingStrategies !== undefined ? app.routingStrategies() : [];
   for (var i = 0; i < appSuppliedStrategies.length; i++) {
-    this._router.addStrategy(appSuppliedStrategies[i]);
+    router.addStrategy(appSuppliedStrategies[i]);
   }
-}
 
-// TODO: is a build method really needed? consider whether this object-with-hooks method is better than a builder, and pick a way instead of mixing like this
-ApiBuilder.prototype.build = function () {
-  var router = this._router;
-  var self = this;
+  return {
+    // TODO: is a build method really needed? consider whether this object-with-hooks method is better than a builder, and pick a way instead of mixing like this
+    build: function build() {
+      return function (req, res) {
+        try {
+          var state = Object.freeze(app.initRequestState(req) || {});
 
-  return function (req, res) {
-    try {
-      var state = Object.freeze(self._app.initRequestState(req) || {});
+          var response = Response();
+          response
+              .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
+              .setHeader("Access-Control-Allow-Origin", (app.corsOrigin ? app.corsOrigin(state) : ""))
+              .setHeader("Access-Control-Allow-Headers", (app.corsAllowedHeaders ? app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
+          ;
 
-      var response = new Response();
-      response
-          .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
-          .setHeader("Access-Control-Allow-Origin", (self._app.corsOrigin ? self._app.corsOrigin(state) : ""))
-          .setHeader("Access-Control-Allow-Headers", (self._app.corsAllowedHeaders ? self._app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
-      ;
+          var strategyContext = Object.freeze({
+            dataPromise: function () { return dataPromise(req); },
+          });
 
-      var strategyContext = Object.freeze({
-        dataPromise: function () { return dataPromise(req); },
-      });
+          Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
+              .catch(function (err) {
+                if (process.env.DEBUG) {
+                  console.log("Promise-catch:");
+                  console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+                }
+                // TODO: managing these states via exceptions is not great, at least use custom exception types?
+                if (err.message.indexOf("No strategies match request") === 0) {
+                  // TODO: this.doError() would be nice
+                  doError(response, 404, "Not Found");
+                } else if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
+                  doError(response, 406, "Not Acceptable", "JSON Parsing Error", err);
+                } else {
+                  doError(response, 500, "Internal Server Error", "Routing error", err);
+                }
+              })
+              .finally(function () {
+                response.write(res);
+              })
+              .done()
+          ;
 
-      Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
-          .catch(function (err) {
-            if (process.env.DEBUG) {
-              console.log("Promise-catch:");
-              console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
-            }
-            // TODO: managing these states via exceptions is not great, at least use custom exception types?
-            if (err.message.indexOf("No strategies match request") === 0) {
-              // TODO: this.doError() would be nice
-              doError(response, 404, "Not Found");
-            } else if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
-              doError(response, 406, "Not Acceptable", "JSON Parsing Error", err);
-            } else {
-              doError(response, 500, "Internal Server Error", "Routing error", err);
-            }
-          })
-          .finally(function () {
-            response.write(res);
-          })
-          .done()
-      ;
+        } catch (err) {
+          if (process.env.DEBUG) {
+            console.log("Framework-catch:");
+            console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+          }
 
-    } catch (err) {
-      if (process.env.DEBUG) {
-        console.log("Framework-catch:");
-        console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
-      }
+          // NB. this is hard-coded on purpose, in order to avoid errors
+          // incurred during refactoring
+          var body = {
+            error: "500 - Internal Server Error"
+          };
 
-      // NB. this is hard-coded on purpose, in order to avoid errors
-      // incurred during refactoring
-      var body = {
-        error: "500 - Internal Server Error"
+          if (process.env.DEBUG) {
+            body.message = err.message;
+            body.stack = err.stack.split("\n").slice(1);
+          }
+
+          res.writeHead(500, {
+            "Cache-Control": "public, max-age=0, no-cache, no-store",
+            "Content-Type": "application/json; charset=utf-8",
+          });
+
+          res.end(JSON.stringify(body));
+        }
       };
-
-      if (process.env.DEBUG) {
-        body.message = err.message;
-        body.stack = err.stack.split("\n").slice(1);
-      }
-
-      res.writeHead(500, {
-        "Cache-Control": "public, max-age=0, no-cache, no-store",
-        "Content-Type": "application/json; charset=utf-8",
-      });
-
-      res.end(JSON.stringify(body));
-    }
+    },
   };
-};
+}
 
 module.exports = ApiBuilder;
