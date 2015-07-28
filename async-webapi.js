@@ -265,7 +265,7 @@ function ApiBuilder(app) {
     build: function build() {
       return function (req, res) {
         try {
-          var state = Object.freeze(app.initRequestState(req) || {});
+          var state = Object.freeze(app.initRequestState(req, res) || {});
 
           var response = Response();
           response
