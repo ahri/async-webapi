@@ -100,17 +100,17 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
            ", body: " + JSON.stringify(args[5]) + "}";
   });
 
-  var transitionCall = function (err, uri, status, headers, body) {
+  function transitionCall(err, uri, status, headers, body) {
     if (status !== 200) {
-      strategy.exec(err, 0, uri, status, headers, body);
+      throw Error("Did not expect non-200 transition");
     }
 
     if (body.type === undefined || body.message === undefined) {
-      err = Error("Expected both type and message to be set in body");
+      throw Error("Expected both type and message to be set in body");
     }
 
     eventCallback(body.type, body.message);
-  };
+  }
 
   var asyncPoller = AsyncPoller(platform, strategy, http);
 

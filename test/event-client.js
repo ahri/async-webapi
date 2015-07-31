@@ -58,7 +58,7 @@ describe('The Event Client', function () {
   it('should call a transition callback when moving from /events to /events/1', function (done) {
     var dummyServer = DummyServer([
       [null, '/events', 200, {}, {next: '/events/1'}],
-      [null, '/events/1', 200, {}, {message: "at head"}],
+      [null, '/events/1', 200, {}, {type: 'foo', message: "at head"}],
     ]);
 
     var transition = function (type, message) {
@@ -71,8 +71,8 @@ describe('The Event Client', function () {
   it('should traverse all events up to the head', function (done) {
     var dummyServer = DummyServer([
       [null, '/events', 200, {}, {next: '/events/1'}],
-      [null, '/events/1', 200, {}, {message: "foo", next: '/events/2'}],
-      [null, '/events/2', 200, {}, {message: "at head"}],
+      [null, '/events/1', 200, {}, {type: 'foo', message: "foo", next: '/events/2'}],
+      [null, '/events/2', 200, {}, {type: 'foo', message: "at head"}],
     ]);
 
     var calls = 0;
@@ -91,7 +91,7 @@ describe('The Event Client', function () {
     var dummyServer = DummyServer([
       [null, '/events', 204, {}, {}],
       [null, '/events', 200, {}, {next: '/events/1'}],
-      [null, '/events/1', 200, {}, {message: "at head"}], // NB. transition call happens when we move to here
+      [null, '/events/1', 200, {}, {type: 'foo', message: "at head"}], // NB. transition call happens when we move to here
     ]);
 
     var transition = function (type, message) { done(); };
