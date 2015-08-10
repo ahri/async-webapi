@@ -65,7 +65,7 @@ describe('The Event Client', function () {
       done();
     };
 
-    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, undefined, platform);
   });
 
   it('should traverse all events up to the head', function (done) {
@@ -84,7 +84,7 @@ describe('The Event Client', function () {
       }
     };
 
-    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, undefined, platform);
   });
 
   it('should poll normally if it receives a 204 - there are no events', function (done) {
@@ -96,7 +96,7 @@ describe('The Event Client', function () {
 
     var transition = function (type, message) { done(); };
 
-    client = EventClient('/events', transition, dummyServer.http(), backoff, platform);
+    client = EventClient('/events', transition, dummyServer.http(), backoff, undefined, platform);
   });
 
   describe('under server error conditions', function () {
@@ -116,7 +116,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = EventClient('/events', function (type, message) {}, http, backoff, platform);
+      client = EventClient('/events', function (type, message) {}, http, backoff, undefined, platform);
     });
   });
 
@@ -137,7 +137,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      client = EventClient('/events', function (type, message) {}, http, backoff, platform);
+      client = EventClient('/events', function (type, message) {}, http, backoff, undefined, platform);
     });
   });
 
@@ -152,7 +152,7 @@ describe('The Event Client', function () {
         done();
       };
 
-      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, undefined, platform);
     });
 
     it.skip('authentication required should kill off the client', function (done) {
@@ -165,7 +165,45 @@ describe('The Event Client', function () {
         done();
       };
 
-      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, platform);
+      EventClient('/events', function (err, type, message) {}, dummyServer.http(), backoff, undefined, platform);
+    });
+  });
+
+  describe('persistance', function () {
+    it('should pick up where it left off', function (done) {
+      var place;
+      var repo = {
+        transitionedTo: function (uri) {
+          place = uri;
+        },
+
+        latest: function () {
+          return place;
+        }
+      };
+
+      var dummyServer = DummyServer([
+        [null, '/events', 204, {}, {}],
+        [null, '/events', 200, {}, {next: '/events/1'}],
+        [null, '/events/1', 200, {}, {type: 'foo', message: "at head"}], // NB. transition call happens when we move to here
+      ]);
+
+      var transition = function (type, message) {
+        client.disable();
+
+        // should do http req for 1 straight away, otherwise fail
+        var http = {
+          get: function (uri, callback) {
+            expect(uri).to.equal("/events/1");
+            done();
+          },
+        };
+
+        // should be at 1
+        client = EventClient('/events', transition, http, backoff, repo, platform);
+      };
+
+      client = EventClient('/events', transition, dummyServer.http(), backoff, repo, platform);
     });
   });
 });

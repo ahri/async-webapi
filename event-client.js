@@ -60,7 +60,14 @@ function Strategy(debug) {
   };
 }
 
-function EventClient(initialUri, eventCallback, http, backoff, platform) {
+function NullRepo() {
+  return {
+    transitionedTo: function (uri) {},
+    latest: function () {},
+  };
+}
+
+function EventClient(initialUri, eventCallback, http, backoff, repo, platform) {
   if (initialUri === undefined) {
     throw Error("Provide an initial uri");
   }
@@ -83,6 +90,8 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       waitingCallback: function () {},
     };
   }
+
+  repo = repo || NullRepo();
 
   if (platform === undefined) {
     platform = {
@@ -108,6 +117,8 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
     if (body.type === undefined || body.message === undefined) {
       throw Error("Expected both type and message to be set in body");
     }
+
+    repo.transitionedTo(uri);
 
     eventCallback(body.type, body.message);
   }
@@ -186,6 +197,11 @@ function EventClient(initialUri, eventCallback, http, backoff, platform) {
       asyncPoller.poll(uri, delay);
     }
   });
+
+  var latest = repo.latest();
+  if (latest) {
+    initialUri = latest;
+  }
 
   asyncPoller.poll(initialUri, 0);
 
