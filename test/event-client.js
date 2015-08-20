@@ -199,6 +199,8 @@ describe('The Event Client', function () {
           },
         };
 
+        expect(place).to.equal('/events/1');
+
         // should be at 1
         client = EventClient('/events', transition, http, backoff, repo, platform);
       };

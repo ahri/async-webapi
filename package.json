@@ -1,8 +1,8 @@
 {
-  "name": "async-webapi",
+  "name": "spoo",
   "version": "0.0.1",
-  "description": "A basic strict web interface for CQRS-ES-style applications",
-  "main": "async-webapi.js",
+  "description": "A basic, strict framework for developing CQRS-ES-style applications",
+  "main": "spoo.js",
   "scripts": {
     "pretest": "npm install",
     "test": "mocha --harmony -bGwR spec",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:ahri/async-webapi.git"
+    "url": "git@github.com:ahri/spoo.git"
   },
   "author": "",
   "license": "MIT",

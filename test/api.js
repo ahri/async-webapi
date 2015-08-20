@@ -3,7 +3,7 @@
 var http = require('http'),
     request = require('supertest'),
     expect = require('chai').expect,
-    AsyncWebApi = require('../async-webapi'),
+    Spoo = require('../spoo'),
     Router = require('../router');
 
 function checkForErr(message) {
@@ -133,7 +133,7 @@ function ReqPrimer(api) {
 }
 
 function buildApi(app) {
-  return ReqPrimer(request(http.createServer(AsyncWebApi(app)
+  return ReqPrimer(request(http.createServer(Spoo(app)
     .build()).listen()
   ));
 }
