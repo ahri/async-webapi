@@ -1,10 +1,10 @@
 # Spoo
-> the most delicious food in the galaxy
+> Fah! Get that away from me. Spoo needs to age.
 
 NodeJS web framework to support CQRS-ES-style applications, with strict error
 handling and very few requirements on your application.
 
-_NOT PRODUCTION-READY!_
+## _NOT PRODUCTION-READY!_
 
 There are a couple of expections it makes of your application;
 
@@ -13,8 +13,19 @@ There are a couple of expections it makes of your application;
 
 2. Events, where appropriate, will provide the ID for the next event, and will
    be of the form:
-   {
-     id: 123,
-     message: "arbitrary JS value for your consumption",
-     next: 124
-   }
+
+    ```json
+    {
+      id: 123,
+      message: "arbitrary JS value for your consumption",
+      next: 124
+    }
+    ```
+
+## Release Notes
+
+- 0.0.2
+  - remove useless .build() method
+  - remove concept of a local app
+
+- 0.0.1 - first release

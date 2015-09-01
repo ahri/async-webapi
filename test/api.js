@@ -133,9 +133,7 @@ function ReqPrimer(api) {
 }
 
 function buildApi(app) {
-  return ReqPrimer(request(http.createServer(Spoo(app)
-    .build()).listen()
-  ));
+  return ReqPrimer(request(http.createServer(Spoo(app)).listen()));
 }
 
 [1, 0].forEach(function (debug) {
@@ -311,8 +309,6 @@ function buildApi(app) {
 
           api = buildApi(app);
         });
-
-        it.skip('idempotency in commands');
 
         describe('should describe command', function () {
           var assertCommandIsDescribed = function (cmd, done) {

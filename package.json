@@ -1,6 +1,6 @@
 {
   "name": "spoo",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A basic, strict framework for developing CQRS-ES-style applications",
   "main": "spoo.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "type": "git",
     "url": "git@github.com:ahri/spoo.git"
   },
-  "author": "",
+  "author": "Adam Piper <adam@ahri.net>",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {

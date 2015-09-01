@@ -65,7 +65,7 @@ function doError(response, code, name, detail, err) {
   ;
 }
 
-function ApiBuilder(app) {
+function Spoo(app) {
   var CACHE_SETTING = process.env.DEBUG ?
     "public, max-age=0, no-cache, no-store" :
     "public, max-age=31536000";
@@ -260,73 +260,68 @@ function ApiBuilder(app) {
     router.addStrategy(appSuppliedStrategies[i]);
   }
 
-  return {
-    // TODO: is a build method really needed? consider whether this object-with-hooks method is better than a builder, and pick a way instead of mixing like this
-    build: function build() {
-      return function (req, res) {
-        try {
-          var state = Object.freeze(app.initRequestState(req, res) || {});
+  return function (req, res) {
+    try {
+      var state = Object.freeze(app.initRequestState(req, res) || {});
 
-          var response = Response();
-          response
-              .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
-              .setHeader("Access-Control-Allow-Origin", (app.corsOrigin ? app.corsOrigin(state) : ""))
-              .setHeader("Access-Control-Allow-Headers", (app.corsAllowedHeaders ? app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
-          ;
+      var response = Response();
+      response
+          .setHeader("Cache-Control", "public, max-age=0, no-cache, no-store")
+          .setHeader("Access-Control-Allow-Origin", (app.corsOrigin ? app.corsOrigin(state) : ""))
+          .setHeader("Access-Control-Allow-Headers", (app.corsAllowedHeaders ? app.corsAllowedHeaders(state) : ["Content-Type"]).join(", "))
+      ;
 
-          var strategyContext = Object.freeze({
-            dataPromise: function () { return dataPromise(req); },
-          });
+      var strategyContext = Object.freeze({
+        dataPromise: function () { return dataPromise(req); },
+      });
 
-          Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
-              .catch(function (err) {
-                if (process.env.DEBUG) {
-                  console.log("Promise-catch:");
-                  console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
-                }
-                // TODO: managing these states via exceptions is not great, at least use custom exception types?
-                if (err.message.indexOf("No strategies match request") === 0) {
-                  // TODO: this.doError() would be nice
-                  doError(response, 404, "Not Found");
-                } else if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
-                  doError(response, 406, "Not Acceptable", "JSON Parsing Error", err);
-                } else {
-                  doError(response, 500, "Internal Server Error", "Routing error", err);
-                }
-              })
-              .finally(function () {
-                response.write(res);
-              })
-              .done()
-          ;
+      Q.fcall(router.execute.bind(router), strategyContext, req, response, state)
+          .catch(function (err) {
+            if (process.env.DEBUG) {
+              console.log("Promise-catch:");
+              console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+            }
+            // TODO: managing these states via exceptions is not great, at least use custom exception types?
+            if (err.message.indexOf("No strategies match request") === 0) {
+              // TODO: this.doError() would be nice
+              doError(response, 404, "Not Found");
+            } else if (err.message.indexOf("Supplied JSON is invalid") !== -1) {
+              doError(response, 406, "Not Acceptable", "JSON Parsing Error", err);
+            } else {
+              doError(response, 500, "Internal Server Error", "Routing error", err);
+            }
+          })
+          .finally(function () {
+            response.write(res);
+          })
+          .done()
+      ;
 
-        } catch (err) {
-          if (process.env.DEBUG) {
-            console.log("Framework-catch:");
-            console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
-          }
+    } catch (err) {
+      if (process.env.DEBUG) {
+        console.log("Framework-catch:");
+        console.log((err.stack).replace(/^/mg, chalk.red(" !! ")));
+      }
 
-          // NB. this is hard-coded on purpose, in order to avoid errors
-          // incurred during refactoring
-          var body = {
-            error: "500 - Internal Server Error"
-          };
-
-          if (process.env.DEBUG) {
-            body.message = err.message;
-            body.stack = err.stack.split("\n").slice(1);
-          }
-
-          res.writeHead(500, {
-            "Cache-Control": "public, max-age=0, no-cache, no-store",
-            "Content-Type": "application/json; charset=utf-8",
-          });
-
-          res.end(JSON.stringify(body));
-        }
+      // NB. this is hard-coded on purpose, in order to avoid errors
+      // incurred during refactoring
+      var body = {
+        error: "500 - Internal Server Error"
       };
-    },
+
+      if (process.env.DEBUG) {
+        body.message = err.message;
+        body.stack = err.stack.split("\n").slice(1);
+      }
+
+      res.writeHead(500, {
+        "Cache-Control": "public, max-age=0, no-cache, no-store",
+        "Content-Type": "application/json; charset=utf-8",
+      });
+
+      res.end(JSON.stringify(body));
+    }
   };
 }
 
-module.exports = ApiBuilder;
+module.exports = Spoo;

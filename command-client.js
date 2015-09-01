@@ -1,17 +1,13 @@
 'use strict';
 
-function CommandClient(localApp, repo, http, backoff, platform) {
-  if (localApp === undefined) {
-    throw Error("Provide an app");
-  }
-
+function CommandClient(repo, http, backoff, platform) {
   if (repo === undefined) {
     // TODO: consider defaulting to browser impl
-    throw Error("Provide a repo");
+    throw new Error("Provide a repo");
   }
 
   if (http === undefined) {
-    throw Error("Provide an http client implementation");
+    throw new Error("Provide an http client implementation");
   }
 
   if (backoff === undefined) {
@@ -73,20 +69,11 @@ function CommandClient(localApp, repo, http, backoff, platform) {
         normalState();
       } else {
         platform.console.error(body);
-        throw Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
+        throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
       }
     }
 
     http.post(firstCommand.cmd, firstCommand.data, callback);
-  }
-
-  function callLocalQueueNetwork(cmd, data) {
-    var cmdFunc = localApp[cmd];
-    if (cmdFunc === undefined) {
-      throw Error("Command " + cmd + " does not exist");
-    }
-    cmdFunc.call(localApp, data);
-    repo.add(cmd, data);
   }
 
   return {
@@ -94,10 +81,8 @@ function CommandClient(localApp, repo, http, backoff, platform) {
       disabled = true;
     },
 
-    callLocalQueueNetwork: callLocalQueueNetwork,
-
     exec: function exec(cmd, data) {
-      callLocalQueueNetwork(cmd, data);
+      repo.add(cmd, data);
 
       if (disabled || busy) {
         return;

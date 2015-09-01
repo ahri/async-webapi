@@ -4,15 +4,11 @@ var expect = require('chai').expect,
     CommandClient = require('../command-client');
 
 describe('The CommandClient class', function () {
-  var commandClient, localApp, storage, repo, http, backoff, platform;
+  var commandClient, storage, repo, http, backoff, platform;
 
   beforeEach(function () {
     var cmds = {};
 
-    localApp = {
-      foo: function () {},
-      xyz: function () {},
-    };
     repo = {
       getFirst: function () {
         return cmds.first;
@@ -57,7 +53,8 @@ describe('The CommandClient class', function () {
         error: function () {},
       },
     };
-    commandClient = CommandClient(localApp, repo, http, backoff, platform);
+
+    commandClient = CommandClient(repo, http, backoff, platform);
   });
 
   it('should store the command', function (done) {
@@ -66,16 +63,6 @@ describe('The CommandClient class', function () {
     repo.add = function (cmd, data) {
       repoAdd.call(repo, cmd, data);
       if (cmd === "foo" && data === "bar") {
-        done();
-      }
-    };
-
-    commandClient.exec("foo", "bar");
-  });
-
-  it('should pass command to the local app', function (done) {
-    localApp.foo = function (data) {
-      if (data === "bar") {
         done();
       }
     };
@@ -96,8 +83,6 @@ describe('The CommandClient class', function () {
   });
 
   it('should post two commands in order', function (done) {
-    commandClient.callLocalQueueNetwork('foo', 'bar');
-
     var httpPost = http.post,
         calledFirst = false;
 
@@ -110,11 +95,10 @@ describe('The CommandClient class', function () {
         done();
       }
 
-      setTimeout(function () {
-        callback(null, uri, 200, {}, {});
-      }, 10);
+      httpPost(uri, data, callback);
     };
 
+    commandClient.exec('foo', 'bar');
     commandClient.exec("xyz", "123");
   });
 
@@ -235,24 +219,6 @@ describe('The CommandClient class', function () {
       };
 
       commandClient.exec("foo", "bar");
-    });
-  });
-
-  describe('edge cases', function () {
-    it('should be helpful when I specify an incorrect command', function () {
-      expect(function () {
-        commandClient.exec("doesnt/exist", 1);
-      }).to.throw("Command doesnt/exist does not exist");
-    });
-  });
-
-  describe('callLocalQueueNetwork', function () {
-    it('should not fire anything off when callLocalQueueNetwork() is called', function () {
-      http.post = function(uri, data, callback) {
-        throw Error("Should not be called"); // TODO: async failure by calling?
-      };
-
-      commandClient.callLocalQueueNetwork("foo", "bar");
     });
   });
 
