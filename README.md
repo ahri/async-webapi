@@ -16,13 +16,17 @@ There are a couple of expections it makes of your application;
 
     ```json
     {
-      id: 123,
-      message: "arbitrary JS value for your consumption",
-      next: 124
+      "id": 123,
+      "message": "arbitrary JS value for your consumption",
+      "next": 124
     }
     ```
 
 ## Release Notes
+
+- 0.0.3
+  - fix bug in command client that was causing duplicate commands to be sent
+  - ignore test files in npm package
 
 - 0.0.2
   - remove useless .build() method

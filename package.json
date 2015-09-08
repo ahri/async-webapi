@@ -1,6 +1,6 @@
 {
   "name": "spoo",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A basic, strict framework for developing CQRS-ES-style applications",
   "main": "spoo.js",
   "scripts": {
