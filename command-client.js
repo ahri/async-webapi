@@ -31,6 +31,7 @@ function CommandClient(repo, http, backoff, platform) {
 
   function exhaustQueue(delay) {
     var firstCommand = repo.getFirst();
+
     if (!firstCommand) {
       busy = false;
       return;
@@ -41,32 +42,26 @@ function CommandClient(repo, http, backoff, platform) {
 
     function normalState() {
       repo.removeFirst();
-      platform.setTimeout(function () {
-        exhaustQueue();
-      }, 0);
+      platform.setTimeout(exhaustQueue, 0);
     }
 
     function errorState(increaseFunc, callback) {
       var newDelay = increaseFunc(delay);
 
-      platform.setTimeout(function () {
-        callback(newDelay);
-      }, 0);
+      platform.setTimeout(callback.bind(null, newDelay), 0);
 
-      platform.setTimeout(function () {
-        exhaustQueue(newDelay);
-      }, newDelay);
+      platform.setTimeout(exhaustQueue.bind(null, newDelay), newDelay);
     }
 
     function callback(err, uri, status, headers, body) {
       if (err) {
         platform.console.error(err);
         errorState(backoff.clientErrorIncrease, backoff.clientErrorCallback);
+      } else if (status >= 200 && status < 300) {
+        normalState();
       } else if (status >= 500 && status < 600) {
         platform.console.error(body);
         errorState(backoff.serverErrorIncrease, backoff.serverErrorCallback);
-      } else if (status >= 200 && status < 300) {
-        normalState();
       } else {
         platform.console.error(body);
         throw new Error("Unexpected response: uri=" + uri + ", status=" + status + ", headers=" + headers + ", body=" + body);
@@ -88,7 +83,7 @@ function CommandClient(repo, http, backoff, platform) {
         return;
       }
 
-      platform.setTimeout(function () { exhaustQueue(); }, 0);
+      exhaustQueue();
     },
   };
 }
